@@ -355,7 +355,7 @@ function createInteractiveMap(config) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(config.pageTitle)}</title>
 <style>
-  :root { --ink:#1b2c33; --muted:#63767d; --line:#dbe6e3; --brand:#2f89a6; --overlay-opacity:.25; --label-scale:1.08; }
+  :root { --ink:#1b2c33; --muted:#63767d; --line:#dbe6e3; --brand:#2f89a6; --overlay-opacity:.60; --label-scale:1.08; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif; color:var(--ink); background:linear-gradient(135deg,#f7faf8,#f4f0e8); }
   .app { min-height:100vh; display:grid; grid-template-columns:minmax(720px,1fr) 430px; gap:18px; padding:24px; }
@@ -440,7 +440,7 @@ function createInteractiveMap(config) {
     <header><h1>${esc(config.title)}</h1><p>${esc(config.subtitle)}</p><p>${esc(config.updateLine)}</p></header>
     ${config.showPresetButtons === false ? "" : `<div class="presetBar">${(config.viewPresets || []).map(preset => `<button class="presetButton" data-preset="${esc(preset.id)}">${esc(preset.label)}</button>`).join("")}</div>`}
     <div class="toolbar">${(config.navLinks || []).map(link => `<a class="mapNav${link.active ? " active" : ""}" href="${esc(link.href)}" data-short="${esc(link.shortLabel || link.label)}">${esc(link.label)}</a>`).join("")}<button id="zoomIn">+</button><button id="zoomOut">-</button><button id="reset">重置</button><button id="toggleLabels">文字</button><button id="toggleTiles">底图</button></div>
-    <div class="overlayControl"><label for="overlayOpacity">房价图层</label><input id="overlayOpacity" type="range" min="0" max="100" value="${config.overlayOpacity ?? 20}"><span id="overlayOpacityValue">${config.overlayOpacity ?? 20}%</span></div>
+    <div class="overlayControl"><label for="overlayOpacity">房价图层</label><input id="overlayOpacity" type="range" min="0" max="100" value="${config.overlayOpacity ?? 60}"><span id="overlayOpacityValue">${config.overlayOpacity ?? 60}%</span></div>
     <svg id="map" viewBox="${mapViewBox.x.toFixed(2)} ${mapViewBox.y.toFixed(2)} ${mapViewBox.w.toFixed(2)} ${mapViewBox.h.toFixed(2)}" preserveAspectRatio="xMidYMid meet">
       <g id="viewport">
         <g id="tileLayerA" class="tileBuffer active"></g><g id="tileLayerB" class="tileBuffer"></g>

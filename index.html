@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>全国房价交互地图</title>
 <style>
-  :root { --ink:#1b2c33; --muted:#63767d; --line:#dbe6e3; --brand:#2f89a6; --overlay-opacity:.25; --label-scale:1.08; }
+  :root { --ink:#1b2c33; --muted:#63767d; --line:#dbe6e3; --brand:#2f89a6; --overlay-opacity:.60; --label-scale:1.08; }
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif; color:var(--ink); background:linear-gradient(135deg,#f7faf8,#f4f0e8); }
   .app { min-height:100vh; display:grid; grid-template-columns:minmax(720px,1fr) 430px; gap:18px; padding:24px; }
@@ -90,7 +90,7 @@
     <header><h1>全国房价地图</h1><p>一张地图渐进细化；放大后自动加载区县边界和价格标签</p><p>数据：312个城市；最近抓取：2026-05-16 21:42 北京时间</p></header>
     
     <div class="toolbar"><button id="zoomIn">+</button><button id="zoomOut">-</button><button id="reset">重置</button><button id="toggleLabels">文字</button><button id="toggleTiles">底图</button></div>
-    <div class="overlayControl"><label for="overlayOpacity">房价图层</label><input id="overlayOpacity" type="range" min="0" max="100" value="20"><span id="overlayOpacityValue">20%</span></div>
+    <div class="overlayControl"><label for="overlayOpacity">房价图层</label><input id="overlayOpacity" type="range" min="0" max="100" value="60"><span id="overlayOpacityValue">60%</span></div>
     <svg id="map" viewBox="63.12 74.00 1205.75 1176.00" preserveAspectRatio="xMidYMid meet">
       <g id="viewport">
         <g id="tileLayerA" class="tileBuffer active"></g><g id="tileLayerB" class="tileBuffer"></g>
@@ -114,7 +114,7 @@
     <div id="selected" class="selected"><div class="name">点击或悬停地图区域</div><div class="meta">可查看房价、环比和数据口径。</div></div>
     <div id="rows" class="rows"></div>
     <div class="notes">
-      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 2026-05-17 02:25 北京时间。<br>
+      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 2026-05-17 02:43 北京时间。<br>
       <b>渐进细化：</b>全国初始为城市级；缩放到任意地区时按省份懒加载区县级边界，避免一次性加载过重。<br>
       <b>覆盖：</b>当前全国底图 370 个城市级区域，已匹配房价 312 个；区县级细节 2927 个区域，已匹配或沿用城市均价 2707 个。<br>
       <b>口径：</b>主数据为禧泰数据/中国房价行情城市住宅挂牌均价；香港、澳门使用补充估算并以不同口径标注。<br>
