@@ -106,6 +106,8 @@
   .cityLabel { font-size: calc(17px * var(--label-scale)); font-weight: 900; fill: #0c5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4.4px; pointer-events: none; }
   .detailLabel { display: none; font-size: calc(8.2px * var(--label-scale)); font-weight: 800; fill: #25363d; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 2px; pointer-events: none; }
   .detailLabel.supplementalLabel { fill: #6f2f5f; }
+  .tileBuffer { opacity: 0; transition: opacity .16s ease; }
+  .tileBuffer.active { opacity: 1; }
   .tileImage { opacity: .78; }
   .legend {
     position: absolute;
@@ -317,7 +319,8 @@
     </div>
     <svg id="map" viewBox="26.80 186.87 1194.40 942.26" preserveAspectRatio="xMidYMid meet" aria-label="粤港澳大湾区房价地图">
       <g id="viewport">
-        <g id="tileLayer"></g>
+        <g id="tileLayerA" class="tileBuffer active"></g>
+        <g id="tileLayerB" class="tileBuffer"></g>
         <g id="priceOverlay">
           <g id="regionSeals">
             <path class="regionSeal" d="M585.77 609.61L584.57 610.44L584.30 612.52L583.34 613.98L582.35 614.84L581.92 615.55L580.09 613.77L579.07 612.26L578.81 612.62L578.38 614.55L578.11 614.71L577.84 618.08L577.36 620.02L575.84 620.01L575.73 620.59L576.23 623.42L576.62 623.94L576.96 626.13L578.41 626.10L578.91 625.86L579.04 626.93L578.22 627.24L578.26 628.06L577.96 628.53L578.07 629.26L577.33 629.65L577.13 630.58L573.69 630.43L573.29 630.49L570.69 632.15L569.17 632.23L569.54 633.00L569.21 634.43L569.98 636.20L571.05 637.17L571.90 637.56L573.82 638.13L575.74 639.66L577.24 641.35L577.86 641.67L581.43 642.07L583.44 641.79L586.40 641.65L588.83 641.25L589.13 641.51L589.56 640.71L591.40 639.67L593.51 638.84L594.39 638.60L592.87 636.97L591.49 635.87L589.69 633.75L588.17 631.08L587.20 627.72L585.57 625.14L587.18 624.69L588.65 624.08L588.26 621.91L588.27 620.85L588.70 619.11L588.77 618.09L588.40 618.09L586.84 617.26L586.51 616.48L585.83 616.05L586.31 615.66L587.50 615.60L588.47 615.06L588.06 613.86L588.41 613.56L587.89 612.61L587.33 612.89L586.39 612.70L586.23 611.79L585.57 610.57L585.77 609.61Z" fill="#f3a05f" stroke="#f3a05f"></path>
@@ -762,7 +765,7 @@
     </div>
     <div id="rows" class="rows"></div>
     <div class="notes">
-      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取内地数据；页面生成 2026-05-16 16:41 北京时间。<br>
+      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取内地数据；页面生成 2026-05-16 16:51 北京时间。<br>
       <b>※口径：</b>香港按差估署RVD私宅均价与Centadata分区指数折算；澳门按统计暨普查局住宅楼价指数折算；中山缺口镇街用房天下二手房参考均价。<br>
       <b>边界：</b>深色线为城市范围，白线为区县/镇街边界；东莞、中山没有县级区划，已按 OSM 镇街边界展示。<br>
       <b>深圳：</b>大鹏新区是功能区，已从龙岗区面中单列；房价源未单列时显示边界但不进列表。<br>
@@ -782,7 +785,7 @@ const macauStats = [["住宅楼价指数","188.9","按季 -1.5%"],["现货住宅
 const svg = document.getElementById('map');
 const viewport = document.getElementById('viewport');
 const mapShell = document.querySelector('.mapShell');
-const tileLayer = document.getElementById('tileLayer');
+const tileBuffers = [document.getElementById('tileLayerA'), document.getElementById('tileLayerB')];
 const overlayOpacityInput = document.getElementById('overlayOpacity');
 const overlayOpacityValue = document.getElementById('overlayOpacityValue');
 const labelScaleInput = document.getElementById('labelScale');
@@ -821,6 +824,9 @@ let tilesVisible = false;
 let overlayOpacity = Number(overlayOpacityInput.value) / 100;
 let labelScale = Number(labelScaleInput.value) / 100;
 let lastTileKey = '';
+let pendingTileKey = '';
+let tileLoadToken = 0;
+let activeTileBuffer = 0;
 let rowEls = [];
 let renderFrame = 0;
 let renderForceLabels = false;
@@ -954,6 +960,56 @@ function tileUrl(x, y, z) {
   const subdomain = ((x + y) % 4) + 1;
   return 'https://webrd0' + subdomain + '.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=' + x + '&y=' + y + '&z=' + z;
 }
+function clearTiles() {
+  tileLoadToken += 1;
+  lastTileKey = '';
+  pendingTileKey = '';
+  tileBuffers.forEach((buffer, index) => {
+    buffer.innerHTML = '';
+    buffer.classList.toggle('active', index === activeTileBuffer);
+  });
+}
+function swapTileBuffer(nextIndex, tileKey, markup) {
+  const next = tileBuffers[nextIndex];
+  const prev = tileBuffers[activeTileBuffer];
+  next.innerHTML = markup;
+  next.classList.add('active');
+  prev.classList.remove('active');
+  activeTileBuffer = nextIndex;
+  lastTileKey = tileKey;
+  pendingTileKey = '';
+  setTimeout(() => {
+    if (tileBuffers[activeTileBuffer] !== prev) prev.innerHTML = '';
+  }, 180);
+}
+function preloadTileUrls(urls, token, onReady) {
+  if (!urls.length) {
+    onReady();
+    return;
+  }
+  let finished = false;
+  let loaded = 0;
+  const done = () => {
+    if (finished || token !== tileLoadToken) return;
+    loaded += 1;
+    if (loaded >= urls.length) {
+      finished = true;
+      onReady();
+    }
+  };
+  urls.forEach(url => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = done;
+    image.onerror = done;
+    image.src = url;
+  });
+  setTimeout(() => {
+    if (finished || token !== tileLoadToken) return;
+    finished = true;
+    onReady();
+  }, 1800);
+}
 function visibleContentBounds() {
   const view = svgVisibleBox();
   const corners = [
@@ -971,10 +1027,7 @@ function visibleContentBounds() {
 }
 function updateTiles() {
   if (!tilesVisible) {
-    if (lastTileKey) {
-      tileLayer.innerHTML = '';
-      lastTileKey = '';
-    }
+    if (lastTileKey || pendingTileKey) clearTiles();
     return;
   }
   const b = visibleContentBounds();
@@ -998,9 +1051,11 @@ function updateTiles() {
   const yStart = Math.max(0, y0 - 1);
   const yEnd = Math.min(n - 1, y1 + 1);
   const tileKey = [z, xStart, xEnd, yStart, yEnd].join(':');
-  if (tileKey === lastTileKey) return;
-  lastTileKey = tileKey;
+  if (tileKey === lastTileKey || tileKey === pendingTileKey) return;
+  pendingTileKey = tileKey;
+  const token = ++tileLoadToken;
   const tiles = [];
+  const urls = [];
   for (let x = xStart; x <= xEnd; x++) {
     for (let y = yStart; y <= yEnd; y++) {
       const lon1 = tileXToLon(x, z);
@@ -1009,10 +1064,17 @@ function updateTiles() {
       const lat2 = tileYToLat(y + 1, z);
       const p1 = projectLonLat(lon1, lat1);
       const p2 = projectLonLat(lon2, lat2);
-      tiles.push('<image class="tileImage" href="' + tileUrl(x, y, z) + '" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
+      const url = tileUrl(x, y, z);
+      urls.push(url);
+      tiles.push('<image class="tileImage" href="' + url + '" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
     }
   }
-  tileLayer.innerHTML = tiles.join('');
+  const markup = tiles.join('');
+  const nextIndex = activeTileBuffer ? 0 : 1;
+  preloadTileUrls(urls, token, () => {
+    if (token !== tileLoadToken || pendingTileKey !== tileKey || !tilesVisible) return;
+    requestAnimationFrame(() => swapTileBuffer(nextIndex, tileKey, markup));
+  });
 }
 function requestTileUpdate(immediate = false) {
   if (tileUpdateTimer) {

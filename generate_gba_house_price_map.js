@@ -876,6 +876,8 @@ const interactiveHtml = `<!doctype html>
   .cityLabel { font-size: calc(17px * var(--label-scale)); font-weight: 900; fill: #0c5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4.4px; pointer-events: none; }
   .detailLabel { display: none; font-size: calc(8.2px * var(--label-scale)); font-weight: 800; fill: #25363d; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 2px; pointer-events: none; }
   .detailLabel.supplementalLabel { fill: #6f2f5f; }
+  .tileBuffer { opacity: 0; transition: opacity .16s ease; }
+  .tileBuffer.active { opacity: 1; }
   .tileImage { opacity: .78; }
   .legend {
     position: absolute;
@@ -1087,7 +1089,8 @@ const interactiveHtml = `<!doctype html>
     </div>
     <svg id="map" viewBox="${mapViewBox.x.toFixed(2)} ${mapViewBox.y.toFixed(2)} ${mapViewBox.w.toFixed(2)} ${mapViewBox.h.toFixed(2)}" preserveAspectRatio="xMidYMid meet" aria-label="粤港澳大湾区房价地图">
       <g id="viewport">
-        <g id="tileLayer"></g>
+        <g id="tileLayerA" class="tileBuffer active"></g>
+        <g id="tileLayerB" class="tileBuffer"></g>
         <g id="priceOverlay">
           <g id="regionSeals">
             ${interactiveRegions.map(r => `<path class="regionSeal" d="${r.d}" fill="${r.fill}" stroke="${r.fill}"></path>`).join("\n")}
@@ -1169,7 +1172,7 @@ const macauStats = ${JSON.stringify(macauStats)};
 const svg = document.getElementById('map');
 const viewport = document.getElementById('viewport');
 const mapShell = document.querySelector('.mapShell');
-const tileLayer = document.getElementById('tileLayer');
+const tileBuffers = [document.getElementById('tileLayerA'), document.getElementById('tileLayerB')];
 const overlayOpacityInput = document.getElementById('overlayOpacity');
 const overlayOpacityValue = document.getElementById('overlayOpacityValue');
 const labelScaleInput = document.getElementById('labelScale');
@@ -1208,6 +1211,9 @@ let tilesVisible = false;
 let overlayOpacity = Number(overlayOpacityInput.value) / 100;
 let labelScale = Number(labelScaleInput.value) / 100;
 let lastTileKey = '';
+let pendingTileKey = '';
+let tileLoadToken = 0;
+let activeTileBuffer = 0;
 let rowEls = [];
 let renderFrame = 0;
 let renderForceLabels = false;
@@ -1341,6 +1347,56 @@ function tileUrl(x, y, z) {
   const subdomain = ((x + y) % 4) + 1;
   return 'https://webrd0' + subdomain + '.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=' + x + '&y=' + y + '&z=' + z;
 }
+function clearTiles() {
+  tileLoadToken += 1;
+  lastTileKey = '';
+  pendingTileKey = '';
+  tileBuffers.forEach((buffer, index) => {
+    buffer.innerHTML = '';
+    buffer.classList.toggle('active', index === activeTileBuffer);
+  });
+}
+function swapTileBuffer(nextIndex, tileKey, markup) {
+  const next = tileBuffers[nextIndex];
+  const prev = tileBuffers[activeTileBuffer];
+  next.innerHTML = markup;
+  next.classList.add('active');
+  prev.classList.remove('active');
+  activeTileBuffer = nextIndex;
+  lastTileKey = tileKey;
+  pendingTileKey = '';
+  setTimeout(() => {
+    if (tileBuffers[activeTileBuffer] !== prev) prev.innerHTML = '';
+  }, 180);
+}
+function preloadTileUrls(urls, token, onReady) {
+  if (!urls.length) {
+    onReady();
+    return;
+  }
+  let finished = false;
+  let loaded = 0;
+  const done = () => {
+    if (finished || token !== tileLoadToken) return;
+    loaded += 1;
+    if (loaded >= urls.length) {
+      finished = true;
+      onReady();
+    }
+  };
+  urls.forEach(url => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.onload = done;
+    image.onerror = done;
+    image.src = url;
+  });
+  setTimeout(() => {
+    if (finished || token !== tileLoadToken) return;
+    finished = true;
+    onReady();
+  }, 1800);
+}
 function visibleContentBounds() {
   const view = svgVisibleBox();
   const corners = [
@@ -1358,10 +1414,7 @@ function visibleContentBounds() {
 }
 function updateTiles() {
   if (!tilesVisible) {
-    if (lastTileKey) {
-      tileLayer.innerHTML = '';
-      lastTileKey = '';
-    }
+    if (lastTileKey || pendingTileKey) clearTiles();
     return;
   }
   const b = visibleContentBounds();
@@ -1385,9 +1438,11 @@ function updateTiles() {
   const yStart = Math.max(0, y0 - 1);
   const yEnd = Math.min(n - 1, y1 + 1);
   const tileKey = [z, xStart, xEnd, yStart, yEnd].join(':');
-  if (tileKey === lastTileKey) return;
-  lastTileKey = tileKey;
+  if (tileKey === lastTileKey || tileKey === pendingTileKey) return;
+  pendingTileKey = tileKey;
+  const token = ++tileLoadToken;
   const tiles = [];
+  const urls = [];
   for (let x = xStart; x <= xEnd; x++) {
     for (let y = yStart; y <= yEnd; y++) {
       const lon1 = tileXToLon(x, z);
@@ -1396,10 +1451,17 @@ function updateTiles() {
       const lat2 = tileYToLat(y + 1, z);
       const p1 = projectLonLat(lon1, lat1);
       const p2 = projectLonLat(lon2, lat2);
-      tiles.push('<image class="tileImage" href="' + tileUrl(x, y, z) + '" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
+      const url = tileUrl(x, y, z);
+      urls.push(url);
+      tiles.push('<image class="tileImage" href="' + url + '" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
     }
   }
-  tileLayer.innerHTML = tiles.join('');
+  const markup = tiles.join('');
+  const nextIndex = activeTileBuffer ? 0 : 1;
+  preloadTileUrls(urls, token, () => {
+    if (token !== tileLoadToken || pendingTileKey !== tileKey || !tilesVisible) return;
+    requestAnimationFrame(() => swapTileBuffer(nextIndex, tileKey, markup));
+  });
 }
 function requestTileUpdate(immediate = false) {
   if (tileUpdateTimer) {
