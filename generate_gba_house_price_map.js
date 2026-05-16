@@ -159,20 +159,66 @@ const values = Object.values(mainlandData).map(([v]) => v);
 const breaks = [0, 8000, 12000, 18000, 30000, 50000, 80000, 120000];
 const colors = ["#2b6cb0", "#4fa3c8", "#8fd0d0", "#f2e6a7", "#f3a05f", "#d95845", "#9e1f2f"];
 
+function polygonBbox(poly) {
+  const coords = poly.flat(1);
+  const lons = coords.map(pt => pt[0]);
+  const lats = coords.map(pt => pt[1]);
+  return {
+    minLon: Math.min(...lons),
+    maxLon: Math.max(...lons),
+    minLat: Math.min(...lats),
+    maxLat: Math.max(...lats),
+  };
+}
+
+function polygonGroupCenter(polygons) {
+  const coords = polygons.flat(2);
+  const lons = coords.map(pt => pt[0]);
+  const lats = coords.map(pt => pt[1]);
+  return [(Math.min(...lons) + Math.max(...lons)) / 2, (Math.min(...lats) + Math.max(...lats)) / 2];
+}
+
+function splitShenzhenFunctionalAreas(feature) {
+  if (feature.properties.name !== "龙岗区" || feature.geometry.type !== "MultiPolygon") return [feature];
+  const longgang = [];
+  const dapeng = [];
+  for (const poly of feature.geometry.coordinates) {
+    const bbox = polygonBbox(poly);
+    if (bbox.maxLon > 114.42 && bbox.minLat < 22.56) dapeng.push(poly);
+    else longgang.push(poly);
+  }
+  if (!longgang.length || !dapeng.length) return [feature];
+  return [
+    {
+      ...feature,
+      properties: { ...feature.properties, center: polygonGroupCenter(longgang) },
+      geometry: { type: "MultiPolygon", coordinates: longgang },
+    },
+    {
+      ...feature,
+      properties: { ...feature.properties, name: "大鹏新区", sourceName: "龙岗区", level: "functional", showName: true, center: polygonGroupCenter(dapeng) },
+      geometry: { type: "MultiPolygon", coordinates: dapeng },
+    },
+  ];
+}
+
 function readGeo(city, file) {
   const geo = JSON.parse(fs.readFileSync(path.join(__dirname, file), "utf8"));
+  const features = [];
   for (const f of geo.features) {
     f.properties.city = city;
     if (city === "东莞") f.properties.name = "东莞市";
     if (city === "中山") f.properties.name = "中山市";
+    features.push(...(city === "深圳" ? splitShenzhenFunctionalAreas(f) : [f]));
   }
-  return geo.features;
+  return features;
 }
 
 function cleanAdminName(name) {
   return name
     .replace(/街道办事处$/, "街道")
     .replace(/高技术产业开发区$/, "开发区")
+    .replace(/新区$/, "")
     .replace(/街道|镇|区|市|园区/g, "");
 }
 
@@ -442,6 +488,14 @@ function fmt(v) {
   return Number(v).toLocaleString("zh-CN");
 }
 
+function fmtWanNumber(v) {
+  return Number((Number(v) / 10000).toFixed(1)).toLocaleString("zh-CN", { maximumFractionDigits: 1 });
+}
+
+function fmtWanLabel(v) {
+  return `${fmtWanNumber(v)}万`;
+}
+
 const topDistricts = Object.entries(mainlandData)
   .map(([k, [price, mom]]) => {
     const [city, name] = k.split("|");
@@ -455,7 +509,7 @@ const sourceNotes = [
   `内地9市：禧泰数据/中国房价行情，住宅挂牌均价，${mainlandPeriodText}；最近抓取 ${fetchedAtText}。`,
   `香港：中原地产 Centadata，分区领先指数与成交数据，${hkPeriodText}。`,
   `澳门：澳门统计暨普查局住宅楼价指数，${macauPeriodText}。`,
-  "底图：阿里云 DataV.GeoAtlas 行政区划边界。港澳因口径不同不纳入元/㎡色阶。"
+  "底图：阿里云 DataV.GeoAtlas 行政区划边界；大鹏新区按功能区单列，无单列房价时为浅灰。"
 ];
 
 let svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -480,7 +534,7 @@ let svg = `<?xml version="1.0" encoding="UTF-8"?>
 <rect width="${W}" height="${H}" fill="url(#bg)"/>
 <path d="M0 1040 C330 980 520 1110 860 1040 S1390 910 1800 1020 L1800 1320 L0 1320Z" fill="#e8f1ec" opacity=".78"/>
 <text x="64" y="82" font-size="44" font-weight="900">粤港澳大湾区房价地图</text>
-<text x="64" y="122" class="small">9+2 城市，区县/镇街可得数据；主体色阶为内地住宅挂牌均价，单位：元/㎡</text>
+<text x="64" y="122" class="small">9+2 城市，区县/镇街可得数据；面内标签单位：万/㎡，右侧保留元/㎡明细</text>
 <text x="64" y="154" class="tiny">数据更新：内地 ${esc(mainlandPeriodText)}；港澳 ${esc(hkPeriodText)} / ${esc(macauPeriodText)}。抓取：${esc(fetchedAtText)}；生成：${esc(generatedAtText)}</text>
 <g filter="url(#softShadow)"><rect x="38" y="178" width="1180" height="990" rx="20" fill="#ffffff" opacity=".84"/></g>
 <rect x="38" y="178" width="1180" height="990" rx="20" fill="#ffffff" opacity=".7" stroke="#dbe6e3"/>
@@ -500,18 +554,20 @@ for (const [city, center] of Object.entries(cityCenters)) {
 for (const f of mainland) {
   const key = `${f.properties.city}|${f.properties.name}`;
   const data = mainlandData[key];
-  if (!data) continue;
+  if (!data && !f.properties.showName) continue;
   const [x, y] = centroidOfFeature(f);
-  if (data[0] < 9000 && !["东莞市", "中山市"].includes(f.properties.name)) continue;
-  svg += `<text x="${x}" y="${y + 18}" class="price" text-anchor="middle">${esc(f.properties.name.replace(/[区县市镇]/g, ""))} ${Math.round(data[0] / 1000)}k</text>`;
+  if (data && data[0] < 9000 && !["东莞市", "中山市"].includes(f.properties.name)) continue;
+  const label = `${cleanAdminName(f.properties.name)}${data ? ` ${fmtWanLabel(data[0])}` : ""}`;
+  svg += `<text x="${x}" y="${y + 18}" class="price" text-anchor="middle">${esc(label)}</text>`;
 }
 
 const lx = 80, ly = 1062;
 svg += `<g>
-<text x="${lx}" y="${ly - 24}" font-size="22" font-weight="800">色阶：内地住宅挂牌均价</text>`;
+<text x="${lx}" y="${ly - 24}" font-size="22" font-weight="800">色阶：内地住宅挂牌均价（万/㎡）</text>`;
 for (let i = 0; i < colors.length; i++) {
   const x = lx + i * 92;
-  svg += `<rect x="${x}" y="${ly}" width="82" height="22" rx="4" fill="${colors[i]}"/><text x="${x}" y="${ly + 46}" class="tiny">${i === 0 ? "<8k" : i === colors.length - 1 ? "80k+" : `${breaks[i]/1000}-${breaks[i+1]/1000}k`}</text>`;
+  const label = i === 0 ? `<${fmtWanNumber(breaks[1])}万` : i === colors.length - 1 ? `${fmtWanNumber(breaks[i])}万+` : `${fmtWanNumber(breaks[i])}-${fmtWanNumber(breaks[i + 1])}万`;
+  svg += `<rect x="${x}" y="${ly}" width="82" height="22" rx="4" fill="${colors[i]}"/><text x="${x}" y="${ly + 46}" class="tiny">${label}</text>`;
 }
 svg += `</g>`;
 
@@ -574,6 +630,8 @@ const interactiveRegions = features.map((f, index) => {
   const cleanName = cleanAdminName(f.properties.name);
   const minLabelScale = price
     ? Math.max(2.0, Math.min(5.5, ((cleanName.length + 4) * 7) / Math.max(10, Math.min(labelBox.w, labelBox.h * 2))))
+    : f.properties.showName
+      ? 2.1
     : 99;
   return {
     id: `r${index}`,
@@ -582,6 +640,7 @@ const interactiveRegions = features.map((f, index) => {
     label: cleanName,
     price,
     mom,
+    showName: Boolean(f.properties.showName),
     d: geomToPath(f.geometry),
     cx: Number(cx.toFixed(2)),
     cy: Number(cy.toFixed(2)),
@@ -626,7 +685,7 @@ const interactiveHtml = `<!doctype html>
     border-radius: 14px;
     box-shadow: 0 18px 38px rgba(37, 70, 80, .10);
   }
-  .mapShell { position: relative; overflow: hidden; min-height: calc(100vh - 48px); }
+  .mapShell { position: relative; overflow: hidden; min-height: calc(100vh - 48px); overscroll-behavior: contain; }
   header { position: absolute; z-index: 3; left: 26px; top: 22px; pointer-events: none; }
   h1 { margin: 0; font-size: 34px; letter-spacing: 0; }
   header p { margin: 8px 0 0; color: var(--muted); font-size: 14px; }
@@ -649,7 +708,7 @@ const interactiveHtml = `<!doctype html>
   button { height: 36px; padding: 0 12px; cursor: pointer; }
   button:hover { border-color: #9fcac6; }
   button.active { border-color: #2f89a6; background: #edf7f6; color: #1f6677; font-weight: 800; }
-  svg { width: 100%; height: calc(100vh - 48px); display: block; cursor: grab; }
+  svg { width: 100%; height: calc(100vh - 48px); display: block; cursor: grab; touch-action: none; user-select: none; }
   svg.dragging { cursor: grabbing; }
   .region { stroke: #fff; stroke-width: 1.2; vector-effect: non-scaling-stroke; transition: opacity .15s, stroke-width .15s, filter .15s, fill-opacity .15s; }
   .region:hover, .region.active { stroke: #102a33; stroke-width: 2.8; filter: drop-shadow(0 5px 8px rgba(25,55,65,.25)); }
@@ -674,7 +733,7 @@ const interactiveHtml = `<!doctype html>
   .legendTitle { font-weight: 800; margin-bottom: 8px; }
   .swatches { display: flex; gap: 8px; align-items: center; }
   .swatch { width: 46px; height: 16px; border-radius: 4px; }
-  .legendLabels { display: flex; gap: 21px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+  .legendLabels { display: grid; grid-template-columns: repeat(7, 46px); gap: 8px; margin-top: 6px; color: var(--muted); font-size: 11px; }
   .tileAttribution {
     position: absolute;
     right: 18px;
@@ -779,6 +838,36 @@ const interactiveHtml = `<!doctype html>
     svg { height: 72vh; }
     .side { max-height: none; }
   }
+  @media (max-width: 760px) {
+    .app { padding: 8px; gap: 10px; }
+    .mapShell { min-height: 72svh; border-radius: 10px; }
+    header { left: 12px; right: 12px; top: 12px; }
+    h1 { font-size: 23px; line-height: 1.15; }
+    header p { margin-top: 5px; font-size: 12px; line-height: 1.35; max-width: calc(100vw - 48px); }
+    header .updateLine { font-size: 11px; }
+    .toolbar {
+      left: 12px;
+      right: 12px;
+      top: 96px;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    button { height: 32px; padding: 0 9px; font-size: 13px; }
+    .overlayControl {
+      left: 12px;
+      right: 12px;
+      top: 168px;
+      width: auto;
+    }
+    svg { height: 72svh; }
+    .legend { left: 12px; bottom: 12px; padding: 10px; border-radius: 10px; max-width: calc(100vw - 40px); }
+    .swatch { width: 34px; }
+    .legendLabels { grid-template-columns: repeat(7, 34px); gap: 8px; font-size: 10px; }
+    .tileAttribution { right: 12px; bottom: 10px; font-size: 10px; }
+    .side { padding: 14px; border-radius: 10px; }
+    .sortBar { grid-template-columns: repeat(2, 1fr); }
+  }
 </style>
 </head>
 <body>
@@ -812,8 +901,8 @@ const interactiveHtml = `<!doctype html>
           }).join("\n")}
         </g>
         <g id="detailLabels">
-          ${interactiveRegions.filter(r => r.price).map(r => `<text class="detailLabel" x="${r.cx}" y="${r.cy}" data-min-scale="${r.labelMinScale}" text-anchor="middle">${esc(r.label)} ${Math.round(r.price / 1000)}k</text>`).join("\n")}
-          ${interactivePoints.filter(p => p.price).map(p => `<text class="detailLabel" x="${p.x}" y="${p.y - 12}" text-anchor="middle">${esc(p.name.replace(/[区县市镇]/g, ""))} ${Math.round(p.price / 1000)}k</text>`).join("\n")}
+          ${interactiveRegions.filter(r => r.price || r.showName).map(r => `<text class="detailLabel" x="${r.cx}" y="${r.cy}" data-min-scale="${r.labelMinScale}" text-anchor="middle">${esc(r.label)}${r.price ? ` ${fmtWanLabel(r.price)}` : ""}</text>`).join("\n")}
+          ${interactivePoints.filter(p => p.price).map(p => `<text class="detailLabel" x="${p.x}" y="${p.y - 12}" text-anchor="middle">${esc(p.name.replace(/[区县市镇]/g, ""))} ${fmtWanLabel(p.price)}</text>`).join("\n")}
         </g>
         <g id="townPoints">
           ${interactivePoints.map(p => `<circle id="${p.id}" class="townPoint" data-city="${esc(p.city)}" data-name="${esc(p.name)}" data-price="${p.price ?? ""}" data-mom="${esc(p.mom)}" cx="${p.x}" cy="${p.y}" r="6" fill="${p.fill}"></circle>`).join("\n")}
@@ -821,9 +910,9 @@ const interactiveHtml = `<!doctype html>
       </g>
     </svg>
     <div class="legend">
-      <div class="legendTitle">内地住宅挂牌均价</div>
+      <div class="legendTitle">内地住宅挂牌均价（万/㎡）</div>
       <div class="swatches">${colors.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
-      <div class="legendLabels"><span>&lt;8k</span><span>8-12k</span><span>12-18k</span><span>18-30k</span><span>30-50k</span><span>50-80k</span><span>80k+</span></div>
+      <div class="legendLabels"><span>&lt;0.8</span><span>0.8-1.2</span><span>1.2-1.8</span><span>1.8-3</span><span>3-5</span><span>5-8</span><span>8+</span></div>
     </div>
     <div class="tileAttribution">地图 © OpenStreetMap contributors</div>
   </section>
@@ -848,6 +937,7 @@ const interactiveHtml = `<!doctype html>
       <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取内地数据；页面生成 ${esc(generatedAtText)}。<br>
       <b>香港：</b>中原 Centadata 分区领先指数，${esc(hkPeriodText)}。<br>
       <b>澳门：</b>统计暨普查局住宅楼价指数，${esc(macauPeriodText)}。<br>
+      <b>深圳：</b>大鹏新区是功能区，已从龙岗区面中单列；房价源未单列时不参与色阶和列表。<br>
       <b>镇街：</b>东莞、中山没有县级区划，已按 OSM 镇街边界展示；无房价数据的镇街为浅灰。<br>
       <b>底图：</b>阿里云 DataV.GeoAtlas。港澳口径不同，未纳入元/㎡色阶。
     </div>
@@ -874,6 +964,8 @@ const search = document.getElementById('search');
 let state = { scale: 1, x: 0, y: 0 };
 let dragging = false;
 let last = null;
+let activePointers = new Map();
+let pinch = null;
 let activeId = null;
 let labelsVisible = true;
 let sortMode = 'priceDesc';
@@ -892,6 +984,9 @@ const mapBounds = ${JSON.stringify(projectedMapBounds)};
 
 function fmt(value) {
   return Number(value).toLocaleString('zh-CN');
+}
+function fmtWan(value) {
+  return Number((Number(value) / 10000).toFixed(1)).toLocaleString('zh-CN', { maximumFractionDigits: 1 }) + '万/㎡';
 }
 function applyOverlayOpacity() {
   document.documentElement.style.setProperty('--overlay-opacity', overlayOpacity.toFixed(2));
@@ -1061,6 +1156,47 @@ function zoom(factor, clientX, clientY) {
   state.scale = nextScale;
   applyTransform();
 }
+function pointerDistance(a, b) {
+  return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+}
+function pointerMidpoint(a, b) {
+  return {
+    clientX: (a.clientX + b.clientX) / 2,
+    clientY: (a.clientY + b.clientY) / 2,
+  };
+}
+function beginPinch() {
+  const points = [...activePointers.values()];
+  if (points.length < 2) {
+    pinch = null;
+    return;
+  }
+  const center = pointerMidpoint(points[0], points[1]);
+  const anchor = clientToSvg(center.clientX, center.clientY);
+  pinch = {
+    distance: Math.max(1, pointerDistance(points[0], points[1])),
+    scale: state.scale,
+    content: svgToContent(anchor),
+  };
+}
+function endPointer(event) {
+  if (activePointers.has(event.pointerId)) {
+    activePointers.delete(event.pointerId);
+    if (svg.releasePointerCapture) {
+      try { svg.releasePointerCapture(event.pointerId); } catch (_) {}
+    }
+  }
+  if (activePointers.size === 1) {
+    const [remaining] = activePointers.values();
+    last = clientToSvg(remaining.clientX, remaining.clientY);
+    dragging = true;
+    pinch = null;
+  } else {
+    dragging = false;
+    pinch = null;
+    svg.classList.remove('dragging');
+  }
+}
 function selectRegion(id, center = false) {
   activeId = id;
   hideTip();
@@ -1069,9 +1205,9 @@ function selectRegion(id, center = false) {
   document.querySelectorAll('.row').forEach(el => el.classList.toggle('active', el.dataset.id === id));
   const r = places.find(item => item.id === id);
   if (!r) return;
-  const isMainland = r.price;
+  const isMainland = !['香港', '澳门'].includes(r.city);
   selected.innerHTML = '<div class="name">' + r.city + ' ' + r.name + '</div>' +
-    (isMainland ? '<div class="price">' + fmt(r.price) + ' 元/㎡</div><div class="meta">环比 ' + r.mom + ' · 住宅挂牌均价</div>' : '<div class="meta">港澳区域请参考下方独立指数口径。</div>');
+    (r.price ? '<div class="price">' + fmt(r.price) + ' 元/㎡</div><div class="meta">约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + ' · 住宅挂牌均价</div>' : isMainland ? '<div class="meta">暂无单列房价数据；已按功能区或镇街边界展示。</div>' : '<div class="meta">港澳区域请参考下方独立指数口径。</div>');
   if (center) {
     state.scale = Math.max(state.scale, 2.3);
     const cx = r.cx ?? r.x;
@@ -1088,7 +1224,7 @@ function showTip(event, r) {
   tooltip.style.left = event.clientX + 'px';
   tooltip.style.top = event.clientY + 'px';
   tooltip.innerHTML = '<strong>' + r.city + ' ' + r.name + '</strong>' +
-    (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 环比 ' + r.mom + '</span>' : '<span>港澳独立指数口径，见右侧说明</span>');
+    (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + '</span>' : !['香港', '澳门'].includes(r.city) ? '<span>暂无单列房价数据，已单列边界</span>' : '<span>港澳独立指数口径，见右侧说明</span>');
 }
 function hideTip() { tooltip.style.display = 'none'; }
 document.querySelectorAll('.region').forEach(el => {
@@ -1108,22 +1244,46 @@ svg.addEventListener('wheel', event => {
   zoom(event.deltaY < 0 ? 1.16 : 0.86, event.clientX, event.clientY);
 }, { passive: false });
 svg.addEventListener('pointerdown', event => {
-  dragging = true;
-  last = clientToSvg(event.clientX, event.clientY);
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  event.preventDefault();
+  if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  activePointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+  if (activePointers.size >= 2) {
+    dragging = false;
+    beginPinch();
+  } else {
+    dragging = true;
+    last = clientToSvg(event.clientX, event.clientY);
+  }
   svg.classList.add('dragging');
 });
 window.addEventListener('pointermove', event => {
+  if (activePointers.has(event.pointerId)) {
+    activePointers.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+  }
+  if (activePointers.size >= 2) {
+    event.preventDefault();
+    const points = [...activePointers.values()];
+    const center = pointerMidpoint(points[0], points[1]);
+    const anchor = clientToSvg(center.clientX, center.clientY);
+    if (!pinch) beginPinch();
+    const nextScale = Math.max(0.7, Math.min(7, pinch.scale * pointerDistance(points[0], points[1]) / pinch.distance));
+    state.x = anchor.x - pinch.content.x * nextScale;
+    state.y = anchor.y - pinch.content.y * nextScale;
+    state.scale = nextScale;
+    applyTransform();
+    return;
+  }
   if (!dragging) return;
+  event.preventDefault();
   const point = clientToSvg(event.clientX, event.clientY);
   state.x += point.x - last.x;
   state.y += point.y - last.y;
   last = point;
   applyTransform();
 });
-window.addEventListener('pointerup', () => {
-  dragging = false;
-  svg.classList.remove('dragging');
-});
+window.addEventListener('pointerup', endPointer);
+window.addEventListener('pointercancel', endPointer);
 document.getElementById('zoomIn').onclick = () => zoom(1.22);
 document.getElementById('zoomOut').onclick = () => zoom(0.82);
 document.getElementById('reset').onclick = () => {
