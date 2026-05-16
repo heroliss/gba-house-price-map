@@ -782,6 +782,7 @@ const interactiveHtml = `<!doctype html>
     --brand: #2f89a6;
     --bg: #f5faf8;
     --overlay-opacity: .62;
+    --label-scale: 1.12;
   }
   * { box-sizing: border-box; }
   body {
@@ -802,6 +803,7 @@ const interactiveHtml = `<!doctype html>
     border: 1px solid var(--line);
     border-radius: 14px;
     box-shadow: 0 18px 38px rgba(37, 70, 80, .10);
+    min-width: 0;
   }
   .mapShell { position: relative; overflow: hidden; min-height: calc(100vh - 48px); overscroll-behavior: contain; }
   header { position: absolute; z-index: 3; left: 26px; top: 22px; pointer-events: none; }
@@ -829,18 +831,49 @@ const interactiveHtml = `<!doctype html>
   svg { width: 100%; height: calc(100vh - 48px); display: block; cursor: grab; touch-action: none; user-select: none; }
   svg.dragging { cursor: grabbing; }
   .regionSeal { stroke-width: 2.8; pointer-events: none; opacity: .98; }
-  .region { stroke: rgba(255,255,255,.92); stroke-width: .85; vector-effect: non-scaling-stroke; transition: opacity .15s, stroke-width .15s, filter .15s, fill-opacity .15s; }
-  .region:hover, .region.active { stroke: #102a33; stroke-width: 2.8; filter: drop-shadow(0 5px 8px rgba(25,55,65,.25)); }
+  .region { stroke: rgba(255,255,255,.92); stroke-width: .85; vector-effect: non-scaling-stroke; transition: opacity .15s, fill-opacity .15s; }
+  .region:hover, .region.active { filter: none; }
   .mapTilesOn .region, .mapTilesOn .regionSeal { fill-opacity: var(--overlay-opacity); stroke-opacity: var(--overlay-opacity); }
   .mapTilesOn .region { stroke-opacity: .86; }
   .mapTilesOn .cityLabel, .mapTilesOn .detailLabel { stroke: rgba(255,255,255,.95); }
   .cityBoundary { fill: none; stroke: #153f49; stroke-width: 2.1; vector-effect: non-scaling-stroke; pointer-events: none; opacity: .7; }
   .mapTilesOn .cityBoundary { stroke-opacity: .86; }
+  .highlightPath {
+    fill: none;
+    pointer-events: none;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  #hoverHighlight {
+    stroke: #ffd15c;
+    stroke-width: 3.2;
+    opacity: .95;
+    filter: drop-shadow(0 2px 5px rgba(82,62,11,.28));
+  }
+  #selectedHighlight {
+    fill: rgba(22, 183, 168, .18);
+    stroke: #0ba99d;
+    stroke-width: 4;
+    opacity: 1;
+    filter: drop-shadow(0 4px 10px rgba(10,83,80,.25));
+  }
+  #selectedPulse {
+    stroke: #0ba99d;
+    stroke-width: 8;
+    opacity: .22;
+    animation: selectedPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes selectedPulse {
+    0%, 100% { opacity: .12; stroke-width: 5; }
+    50% { opacity: .30; stroke-width: 8; }
+  }
   .townPoint { stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; filter: drop-shadow(0 3px 5px rgba(25,55,65,.25)); }
-  .townPoint:hover, .townPoint.active { stroke: #102a33; stroke-width: 3; }
+  .townPoint:hover { stroke: #ffd15c; stroke-width: 3; }
+  .townPoint.active { stroke: #0ba99d; stroke-width: 3.4; filter: drop-shadow(0 4px 9px rgba(10,83,80,.34)); }
   .dimmed { opacity: .18; }
-  .cityLabel { font-size: 17px; font-weight: 900; fill: #0c5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4.4px; pointer-events: none; }
-  .detailLabel { display: none; font-size: 8.2px; font-weight: 800; fill: #25363d; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 2px; pointer-events: none; }
+  .cityLabel { font-size: calc(17px * var(--label-scale)); font-weight: 900; fill: #0c5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4.4px; pointer-events: none; }
+  .detailLabel { display: none; font-size: calc(8.2px * var(--label-scale)); font-weight: 800; fill: #25363d; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 2px; pointer-events: none; }
   .detailLabel.supplementalLabel { fill: #6f2f5f; }
   .tileImage { opacity: .78; }
   .legend {
@@ -928,6 +961,21 @@ const interactiveHtml = `<!doctype html>
     color: #1f6677;
     font-weight: 800;
   }
+  .settingsBar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 14px;
+    padding: 9px 11px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #f7fbfa;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .settingsBar input { width: 100%; accent-color: var(--brand); }
+  .settingsBar span { min-width: 42px; text-align: right; color: var(--muted); font-weight: 700; }
   .selected {
     min-height: 104px;
     border: 1px solid var(--line);
@@ -963,13 +1011,13 @@ const interactiveHtml = `<!doctype html>
     .side { max-height: none; }
   }
   @media (max-width: 760px) {
-    .app { padding: 6px; gap: 8px; }
+    .app { padding: 6px; gap: 8px; max-width: 100vw; overflow: hidden; }
     .mapShell { min-height: 82svh; border-radius: 10px; }
     header {
       left: 8px;
       right: auto;
       top: 8px;
-      max-width: calc(100% - 98px);
+      max-width: calc(100% - 118px);
       padding: 7px 9px;
       border: 1px solid rgba(219,230,227,.9);
       border-radius: 10px;
@@ -979,17 +1027,18 @@ const interactiveHtml = `<!doctype html>
     h1 { font-size: 17px; line-height: 1.1; }
     header p { display: none; }
     .toolbar {
-      left: auto;
-      right: 8px;
+      left: 210px;
+      right: auto;
       top: 8px;
+      width: 93px;
       display: grid;
-      grid-template-columns: repeat(2, 36px);
+      grid-template-columns: repeat(2, 44px);
       gap: 5px;
     }
     button { height: 32px; padding: 0 9px; font-size: 13px; }
-    .toolbar button { width: 36px; padding: 0; font-size: 0; border-radius: 9px; }
+    .toolbar button { width: 44px; padding: 0; font-size: 0; border-radius: 9px; }
     .toolbar button::after { content: attr(data-short); font-size: 14px; font-weight: 800; }
-    .toolbar #toggleTiles { width: 77px; grid-column: 1 / 3; }
+    .toolbar #toggleTiles { width: 93px; grid-column: 1 / 3; }
     .toolbar #toggleTiles::after { font-size: 13px; }
     .overlayControl {
       left: 8px;
@@ -1001,8 +1050,8 @@ const interactiveHtml = `<!doctype html>
       font-size: 11px;
     }
     svg { height: 82svh; }
-    .cityLabel { font-size: 16px; stroke-width: 4.6px; }
-    .detailLabel { font-size: 10.4px; stroke-width: 2.7px; }
+    .cityLabel { font-size: calc(17px * var(--label-scale)); stroke-width: 4.8px; }
+    .detailLabel { font-size: calc(11px * var(--label-scale)); stroke-width: 2.9px; }
     .legend { left: 8px; right: 8px; bottom: 8px; padding: 8px; border-radius: 10px; max-width: none; }
     .legendTitle { font-size: 12px; margin-bottom: 6px; }
     .swatches { gap: 4px; }
@@ -1011,12 +1060,7 @@ const interactiveHtml = `<!doctype html>
     .tileAttribution { right: 10px; bottom: 74px; font-size: 9px; padding: 4px 6px; }
     .side { padding: 14px; border-radius: 10px; }
     .sortBar { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 430px) {
-    .toolbar {
-      left: min(285px, calc(100vw - 85px));
-      right: auto;
-    }
+    .settingsBar { grid-template-columns: auto 1fr auto; font-size: 12px; }
   }
 </style>
 </head>
@@ -1031,8 +1075,8 @@ const interactiveHtml = `<!doctype html>
     <div class="toolbar">
       <button id="zoomIn" data-short="+">放大</button>
       <button id="zoomOut" data-short="-">缩小</button>
-      <button id="reset" data-short="重">重置</button>
-      <button id="toggleLabels" data-short="字">城市名</button>
+      <button id="reset" data-short="重置">重置</button>
+      <button id="toggleLabels" data-short="文字">城市名</button>
       <button id="toggleTiles" data-short="底图">真实地图</button>
     </div>
     <div class="overlayControl" id="overlayControl">
@@ -1049,6 +1093,11 @@ const interactiveHtml = `<!doctype html>
         ${interactiveRegions.map(r => `<path id="${r.id}" class="region" data-city="${esc(r.city)}" data-name="${esc(r.name)}" data-price="${r.price ?? ""}" data-mom="${esc(r.mom)}" data-source="${esc(r.source)}" d="${r.d}" fill="${r.fill}"></path>`).join("\n")}
         <g id="cityBoundaries">
           ${interactiveCityBoundaries.map(r => `<path id="${r.id}" class="cityBoundary" d="${r.d}"></path>`).join("\n")}
+        </g>
+        <g id="highlightLayer">
+          <path id="selectedPulse" class="highlightPath"></path>
+          <path id="selectedHighlight" class="highlightPath"></path>
+          <path id="hoverHighlight" class="highlightPath"></path>
         </g>
         <g id="cityLabels">
           ${Object.entries(cityCenters).map(([city, center]) => {
@@ -1070,7 +1119,7 @@ const interactiveHtml = `<!doctype html>
       <div class="swatches">${colors.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
       <div class="legendLabels">${colors.map((_, index) => `<span>${esc(legendLabel(index))}</span>`).join("")}</div>
     </div>
-    <div class="tileAttribution">地图 © OpenStreetMap contributors</div>
+    <div class="tileAttribution">地图 © 高德地图</div>
   </section>
   <aside class="side">
     <h2>区县/城市数据</h2>
@@ -1084,6 +1133,11 @@ const interactiveHtml = `<!doctype html>
       <button data-sort="city">按城市</button>
       <button data-sort="name">按名称</button>
     </div>
+    <div class="settingsBar">
+      <label for="labelScale">地图文字</label>
+      <input id="labelScale" type="range" min="85" max="165" value="112">
+      <span id="labelScaleValue">112%</span>
+    </div>
     <div id="selected" class="selected">
       <div class="name">点击或悬停地图区域</div>
       <div class="meta">可查看房价、环比和数据口径。</div>
@@ -1094,7 +1148,7 @@ const interactiveHtml = `<!doctype html>
       <b>※口径：</b>香港按差估署RVD私宅均价与Centadata分区指数折算；澳门按统计暨普查局住宅楼价指数折算；中山缺口镇街用房天下二手房参考均价。<br>
       <b>边界：</b>深色线为城市范围，白线为区县/镇街边界；东莞、中山没有县级区划，已按 OSM 镇街边界展示。<br>
       <b>深圳：</b>大鹏新区是功能区，已从龙岗区面中单列；房价源未单列时显示边界但不进列表。<br>
-      <b>底图：</b>阿里云 DataV.GeoAtlas 与 OSM 边界，真实地图来自 OpenStreetMap。
+      <b>底图：</b>阿里云 DataV.GeoAtlas 与 OSM 行政边界；真实地图默认来自高德中文瓦片，国内访问通常更稳定。
     </div>
   </aside>
 </main>
@@ -1112,6 +1166,11 @@ const mapShell = document.querySelector('.mapShell');
 const tileLayer = document.getElementById('tileLayer');
 const overlayOpacityInput = document.getElementById('overlayOpacity');
 const overlayOpacityValue = document.getElementById('overlayOpacityValue');
+const labelScaleInput = document.getElementById('labelScale');
+const labelScaleValue = document.getElementById('labelScaleValue');
+const hoverHighlight = document.getElementById('hoverHighlight');
+const selectedHighlight = document.getElementById('selectedHighlight');
+const selectedPulse = document.getElementById('selectedPulse');
 const tooltip = document.getElementById('tooltip');
 const selected = document.getElementById('selected');
 const rows = document.getElementById('rows');
@@ -1126,6 +1185,7 @@ let labelsVisible = true;
 let sortMode = 'priceDesc';
 let tilesVisible = false;
 let overlayOpacity = Number(overlayOpacityInput.value) / 100;
+let labelScale = Number(labelScaleInput.value) / 100;
 const minScale = 0.7;
 const maxScale = 12;
 const projection = {
@@ -1148,6 +1208,10 @@ function fmtWan(value) {
 function applyOverlayOpacity() {
   document.documentElement.style.setProperty('--overlay-opacity', overlayOpacity.toFixed(2));
   overlayOpacityValue.textContent = Math.round(overlayOpacity * 100) + '%';
+}
+function applyLabelScale() {
+  document.documentElement.style.setProperty('--label-scale', labelScale.toFixed(2));
+  labelScaleValue.textContent = Math.round(labelScale * 100) + '%';
 }
 function applyResponsiveSvgMode() {
   svg.setAttribute('preserveAspectRatio', window.matchMedia('(max-width: 760px)').matches ? 'xMidYMid slice' : 'xMidYMid meet');
@@ -1245,6 +1309,10 @@ function tileYToLat(y, z) {
   const n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
   return Math.atan(Math.sinh(n)) * 180 / Math.PI;
 }
+function tileUrl(x, y, z) {
+  const subdomain = ((x + y) % 4) + 1;
+  return 'https://webrd0' + subdomain + '.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x=' + x + '&y=' + y + '&z=' + z;
+}
 function visibleContentBounds() {
   const view = svgVisibleBox();
   const corners = [
@@ -1290,7 +1358,7 @@ function updateTiles() {
       const lat2 = tileYToLat(y + 1, z);
       const p1 = projectLonLat(lon1, lat1);
       const p2 = projectLonLat(lon2, lat2);
-      tiles.push('<image class="tileImage" href="https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
+      tiles.push('<image class="tileImage" href="' + tileUrl(x, y, z) + '" x="' + p1.x + '" y="' + p1.y + '" width="' + (p2.x - p1.x) + '" height="' + (p2.y - p1.y) + '" preserveAspectRatio="none"></image>');
     }
   }
   tileLayer.innerHTML = tiles.join('');
@@ -1320,6 +1388,24 @@ function zoom(factor, clientX, clientY) {
   state.y = anchor.y - content.y * nextScale;
   state.scale = nextScale;
   applyTransform();
+}
+function setHighlightPath(el, r) {
+  if (r && r.d) {
+    el.setAttribute('d', r.d);
+  } else {
+    el.removeAttribute('d');
+  }
+}
+function setHoverHighlight(r) {
+  if (!r || r.id === activeId) {
+    setHighlightPath(hoverHighlight, null);
+    return;
+  }
+  setHighlightPath(hoverHighlight, r);
+}
+function setSelectedHighlight(r) {
+  setHighlightPath(selectedHighlight, r);
+  setHighlightPath(selectedPulse, r);
 }
 function pointerDistance(a, b) {
   return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
@@ -1370,6 +1456,8 @@ function selectRegion(id, center = false) {
   document.querySelectorAll('.row').forEach(el => el.classList.toggle('active', el.dataset.id === id));
   const r = places.find(item => item.id === id);
   if (!r) return;
+  setSelectedHighlight(r);
+  setHoverHighlight(null);
   const isMainland = !['香港', '澳门'].includes(r.city);
   const sourceLine = r.source ? (r.supplemental ? '※ ' : '') + r.source + (r.quality ? ' · ' + r.quality : '') : '暂无单列口径';
   selected.innerHTML = '<div class="name">' + r.city + ' ' + r.name + '</div>' +
@@ -1396,8 +1484,14 @@ function showTip(event, r) {
 function hideTip() { tooltip.style.display = 'none'; }
 document.querySelectorAll('.region').forEach(el => {
   const r = places.find(item => item.id === el.id);
-  el.addEventListener('mousemove', event => showTip(event, r));
-  el.addEventListener('mouseleave', hideTip);
+  el.addEventListener('mousemove', event => {
+    setHoverHighlight(r);
+    showTip(event, r);
+  });
+  el.addEventListener('mouseleave', () => {
+    setHoverHighlight(null);
+    hideTip();
+  });
   el.addEventListener('click', () => selectRegion(el.id));
 });
 document.querySelectorAll('.townPoint').forEach(el => {
@@ -1475,6 +1569,10 @@ overlayOpacityInput.addEventListener('input', () => {
   overlayOpacity = Number(overlayOpacityInput.value) / 100;
   applyOverlayOpacity();
 });
+labelScaleInput.addEventListener('input', () => {
+  labelScale = Number(labelScaleInput.value) / 100;
+  applyLabelScale();
+});
 function momValue(value) {
   const parsed = Number(String(value || '0').replace('%', ''));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -1522,6 +1620,7 @@ search.addEventListener('input', () => renderRows(search.value));
 renderRows();
 applyResponsiveSvgMode();
 applyOverlayOpacity();
+applyLabelScale();
 applyTransform();
 </script>
 </body>
