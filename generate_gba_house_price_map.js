@@ -818,16 +818,17 @@ const interactiveHtml = `<!doctype html>
     display: flex;
     gap: 8px;
   }
-  button, input {
+  button, .mapNav, input {
     border: 1px solid var(--line);
     background: #fff;
     color: var(--ink);
     border-radius: 8px;
     font: inherit;
   }
-  button { height: 36px; padding: 0 12px; cursor: pointer; }
-  button:hover { border-color: #9fcac6; }
-  button.active { border-color: #2f89a6; background: #edf7f6; color: #1f6677; font-weight: 800; }
+  button, .mapNav { height: 36px; padding: 0 12px; cursor: pointer; }
+  .mapNav { display: inline-flex; align-items: center; text-decoration: none; line-height: 1; }
+  button:hover, .mapNav:hover { border-color: #9fcac6; }
+  button.active, .mapNav.active { border-color: #2f89a6; background: #edf7f6; color: #1f6677; font-weight: 800; }
   svg { width: 100%; height: calc(100vh - 48px); display: block; cursor: grab; touch-action: none; user-select: none; }
   svg.dragging { cursor: grabbing; }
   #viewport { will-change: transform; }
@@ -1020,7 +1021,7 @@ const interactiveHtml = `<!doctype html>
       left: 8px;
       right: auto;
       top: 8px;
-      max-width: calc(100% - 118px);
+      max-width: calc(100% - 146px);
       padding: 7px 9px;
       border: 1px solid rgba(219,230,227,.9);
       border-radius: 10px;
@@ -1033,15 +1034,16 @@ const interactiveHtml = `<!doctype html>
       left: auto;
       right: 8px;
       top: 8px;
-      width: 93px;
+      width: 121px;
       display: grid;
-      grid-template-columns: repeat(2, 44px);
+      grid-template-columns: repeat(2, 58px);
       gap: 5px;
     }
     button { height: 32px; padding: 0 9px; font-size: 13px; }
-    .toolbar button { width: 44px; padding: 0; font-size: 0; border-radius: 9px; }
+    .toolbar button, .toolbar .mapNav { width: 58px; padding: 0; font-size: 0; border-radius: 9px; justify-content: center; }
     .toolbar button::after { content: attr(data-short); font-size: 14px; font-weight: 800; }
-    .toolbar #toggleTiles { width: 93px; grid-column: 1 / 3; }
+    .toolbar .mapNav::after { content: attr(data-short); font-size: 12px; font-weight: 800; }
+    .toolbar #toggleTiles { width: 121px; grid-column: 1 / 3; }
     .toolbar #toggleTiles::after { font-size: 13px; }
     .overlayControl {
       left: 8px;
@@ -1076,6 +1078,8 @@ const interactiveHtml = `<!doctype html>
       <p class="updateLine">内地数据：${esc(mainlandPeriodText)}；最近抓取：${esc(fetchedAtText)}</p>
     </header>
     <div class="toolbar">
+      <a class="mapNav active" href="index.html" data-short="大湾区">大湾区</a>
+      <a class="mapNav" href="jingjinji.html" data-short="京津冀">京津冀</a>
       <button id="zoomIn" data-short="+">放大</button>
       <button id="zoomOut" data-short="-">缩小</button>
       <button id="reset" data-short="重置">重置</button>

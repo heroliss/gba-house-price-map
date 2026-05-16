@@ -183,8 +183,14 @@ async function main() {
   await refreshGeoFiles();
   await refreshPrices();
 
+  const jjjResult = spawnSync(process.execPath, [path.join(ROOT, "scripts", "update-jjj-data.js")], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  if (jjjResult.status !== 0) process.exit(jjjResult.status || 1);
+
   if (shouldGenerate) {
-    const result = spawnSync(process.execPath, [path.join(ROOT, "generate_gba_house_price_map.js"), ROOT], {
+    const result = spawnSync(process.execPath, [path.join(ROOT, "generate_all_maps.js"), ROOT], {
       cwd: ROOT,
       stdio: "inherit",
     });
