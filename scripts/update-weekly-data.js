@@ -21,16 +21,25 @@ const CITY_PAGES = [
 ];
 
 const GEO_FILES = [
+  ["datav_440100.json", "https://geo.datav.aliyun.com/areas_v3/bound/440100.json"],
   ["datav_440100_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/440100_full.json"],
+  ["datav_440300.json", "https://geo.datav.aliyun.com/areas_v3/bound/440300.json"],
   ["datav_440300_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/440300_full.json"],
+  ["datav_440400.json", "https://geo.datav.aliyun.com/areas_v3/bound/440400.json"],
   ["datav_440400_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/440400_full.json"],
+  ["datav_440600.json", "https://geo.datav.aliyun.com/areas_v3/bound/440600.json"],
   ["datav_440600_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/440600_full.json"],
+  ["datav_440700.json", "https://geo.datav.aliyun.com/areas_v3/bound/440700.json"],
   ["datav_440700_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/440700_full.json"],
+  ["datav_441200.json", "https://geo.datav.aliyun.com/areas_v3/bound/441200.json"],
   ["datav_441200_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/441200_full.json"],
+  ["datav_441300.json", "https://geo.datav.aliyun.com/areas_v3/bound/441300.json"],
   ["datav_441300_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/441300_full.json"],
   ["datav_441900.json", "https://geo.datav.aliyun.com/areas_v3/bound/441900.json"],
   ["datav_442000.json", "https://geo.datav.aliyun.com/areas_v3/bound/442000.json"],
+  ["datav_810000.json", "https://geo.datav.aliyun.com/areas_v3/bound/810000.json"],
   ["datav_810000_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/810000_full.json"],
+  ["datav_820000.json", "https://geo.datav.aliyun.com/areas_v3/bound/820000.json"],
   ["datav_820000_full.json", "https://geo.datav.aliyun.com/areas_v3/bound/820000_full.json"],
 ];
 

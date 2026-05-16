@@ -20,6 +20,20 @@ const cityFiles = [
   ["澳门", "datav_820000_full.json"],
 ];
 
+const cityOutlineFiles = [
+  ["广州", "datav_440100.json"],
+  ["深圳", "datav_440300.json"],
+  ["珠海", "datav_440400.json"],
+  ["佛山", "datav_440600.json"],
+  ["江门", "datav_440700.json"],
+  ["肇庆", "datav_441200.json"],
+  ["惠州", "datav_441300.json"],
+  ["东莞", "datav_441900.json"],
+  ["中山", "datav_442000.json"],
+  ["香港", "datav_810000.json"],
+  ["澳门", "datav_820000.json"],
+];
+
 const cityCenters = {
   广州: [113.2644, 23.1291],
   深圳: [114.0579, 22.5431],
@@ -147,17 +161,94 @@ const generatedAtText = formatBeijingTime(dataMetadata.generatedAt);
 const hkPeriodText = dataMetadata.hkPeriod || "公开最新";
 const macauPeriodText = dataMetadata.macauPeriod || "公开最新";
 
+const supplementalData = {
+  "香港|中西区": { price: 148000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03分区与面积类别均价按 1 HKD≈0.92 RMB 粗略折算，Centadata分区指数用于区域差异校准" },
+  "香港|湾仔区": { price: 145000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03港岛均价折算，按区域强弱微调" },
+  "香港|东区": { price: 135000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03港岛均价折算，按区域强弱微调" },
+  "香港|南区": { price: 138000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03港岛均价折算，按区域强弱微调" },
+  "香港|油尖旺区": { price: 140000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03九龙均价折算，按区域强弱微调" },
+  "香港|九龙城区": { price: 136000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03九龙均价折算，按区域强弱微调" },
+  "香港|深水埗区": { price: 124000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03九龙均价折算，按区域强弱微调" },
+  "香港|黄大仙区": { price: 122000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03九龙均价折算，按区域强弱微调" },
+  "香港|观塘区": { price: 126000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03九龙均价折算，按区域强弱微调" },
+  "香港|荃湾区": { price: 105000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界均价折算，按区域强弱微调" },
+  "香港|屯门区": { price: 92000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界西均价折算，按区域强弱微调" },
+  "香港|元朗区": { price: 93000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界西均价折算，按区域强弱微调" },
+  "香港|葵青区": { price: 98000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界西均价折算，按区域强弱微调" },
+  "香港|离岛区": { price: 85000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界西均价折算，按区域强弱微调" },
+  "香港|北区": { price: 105000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界东均价折算，按区域强弱微调" },
+  "香港|大埔区": { price: 116000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界东均价折算，按区域强弱微调" },
+  "香港|沙田区": { price: 121000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界东均价折算，按区域强弱微调" },
+  "香港|西贡区": { price: 125000, mom: "估算", source: "香港差估署/RVD + Centadata", quality: "私人住宅均价折算", note: "RVD 2026-03新界东均价折算，按区域强弱微调" },
+  "澳门|花地玛堂区": { price: 59000, mom: "-1.5%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|花王堂区": { price: 60000, mom: "-1.5%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|望德堂区": { price: 62000, mom: "-1.5%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|风顺堂区": { price: 65000, mom: "-1.5%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|大堂区": { price: 66000, mom: "-1.5%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|嘉模堂区": { price: 69000, mom: "-2.3%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|路凼填海区": { price: 72000, mom: "-2.3%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "澳门|圣方济各堂区": { price: 64000, mom: "-2.3%", source: "澳门统计暨普查局", quality: "住宅楼价指数折算", note: "澳门2026Q1住宅楼价指数，半岛/路氹指数用于区域差异校准" },
+  "中山|小榄镇": { price: 7900, mom: "-0.89%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|古镇镇": { price: 7819, mom: "-0.86%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|南头镇": { price: 7121, mom: "-0.75%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|黄圃镇": { price: 6087, mom: "-0.67%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|民众镇": { price: 6284, mom: "+0.16%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|民众街道": { price: 6284, mom: "+0.16%", source: "房天下查房价", quality: "二手房参考均价", note: "沿用民众镇页面口径，匹配现行街道边界" },
+  "中山|阜沙镇": { price: 6017, mom: "-0.74%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|大涌镇": { price: 5637, mom: "-0.67%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|神湾镇": { price: 5869, mom: "+0.63%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-05二手房参考均价；与主数据来源不同，用※标记" },
+  "中山|五桂山街道": { price: 11720, mom: "-0.98%", source: "房天下查房价", quality: "二手房参考均价", note: "2026-04二手房参考均价；房天下仍使用五桂山镇名称，匹配街道边界" },
+};
+
+function getPriceRecord(city, name) {
+  const key = `${city}|${name}`;
+  const primary = mainlandData[key];
+  if (primary) {
+    return {
+      price: primary[0],
+      mom: primary[1],
+      source: "禧泰数据/中国房价行情",
+      quality: "住宅挂牌均价",
+      note: mainlandPeriodText,
+      supplemental: false,
+    };
+  }
+  const extra = supplementalData[key];
+  if (!extra) return null;
+  return { ...extra, supplemental: true };
+}
+
+function allPriceEntries() {
+  const keys = new Set([...Object.keys(mainlandData), ...Object.keys(supplementalData)]);
+  return [...keys]
+    .map(key => {
+      const [city, name] = key.split("|");
+      const record = getPriceRecord(city, name);
+      return record ? [key, record] : null;
+    })
+    .filter(Boolean);
+}
+
+function sourceMark(record) {
+  return record?.supplemental ? "※" : "";
+}
+
 const townPoints = townPointDefs.map(([city, name, lon, lat], index) => {
-  const data = mainlandData[`${city}|${name}`];
-  return { id: `p${index}`, city, name, lon, lat, price: data?.[0] || null, mom: data?.[1] || "" };
+  const record = getPriceRecord(city, name);
+  return { id: `p${index}`, city, name, lon, lat, price: record?.price || null, mom: record?.mom || "", source: record?.source || "", supplemental: Boolean(record?.supplemental) };
 });
 
 const W = 1800;
 const H = 1320;
 const mapBox = { x: 64, y: 198, w: 1120, h: 920 };
-const values = Object.values(mainlandData).map(([v]) => v);
-const breaks = [0, 8000, 12000, 18000, 30000, 50000, 80000, 120000];
-const colors = ["#2b6cb0", "#4fa3c8", "#8fd0d0", "#f2e6a7", "#f3a05f", "#d95845", "#9e1f2f"];
+const breaks = [0, 8000, 12000, 18000, 30000, 50000, 80000, 120000, 180000];
+const colors = ["#2b6cb0", "#4fa3c8", "#8fd0d0", "#f2e6a7", "#f3a05f", "#d95845", "#9e1f2f", "#64152d"];
+
+function legendLabel(index) {
+  if (index === 0) return `<${fmtWanNumber(breaks[1])}万`;
+  if (index === colors.length - 1) return `${fmtWanNumber(breaks[index])}万+`;
+  return `${fmtWanNumber(breaks[index])}-${fmtWanNumber(breaks[index + 1])}万`;
+}
 
 function polygonBbox(poly) {
   const coords = poly.flat(1);
@@ -212,6 +303,16 @@ function readGeo(city, file) {
     features.push(...(city === "深圳" ? splitShenzhenFunctionalAreas(f) : [f]));
   }
   return features;
+}
+
+function readCityOutline(city, file) {
+  const sourcePath = path.join(__dirname, file);
+  if (!fs.existsSync(sourcePath)) return [];
+  const geo = JSON.parse(fs.readFileSync(sourcePath, "utf8"));
+  return geo.features.map(f => ({
+    ...f,
+    properties: { ...f.properties, city, name: city },
+  }));
 }
 
 function cleanAdminName(name) {
@@ -306,7 +407,7 @@ const townBoundaryFeatures = [
 const features = baseFeatures
   .filter(f => !["东莞", "中山"].includes(f.properties.city))
   .concat(townBoundaryFeatures);
-const mainland = features.filter(f => !["香港", "澳门"].includes(f.properties.city));
+const cityOutlineFeatures = cityOutlineFiles.flatMap(([city, file]) => readCityOutline(city, file));
 
 function walkCoords(geom, fn) {
   const recur = arr => {
@@ -470,9 +571,7 @@ function centroidOfFeature(f) {
   return project(c);
 }
 
-function colorFor(v, city) {
-  if (city === "香港") return "#e8e4fb";
-  if (city === "澳门") return "#f4e0d6";
+function colorFor(v) {
   if (!v) return "#eef2f0";
   for (let i = 0; i < breaks.length - 1; i++) {
     if (v >= breaks[i] && v < breaks[i + 1]) return colors[i];
@@ -496,20 +595,19 @@ function fmtWanLabel(v) {
   return `${fmtWanNumber(v)}万`;
 }
 
-const topDistricts = Object.entries(mainlandData)
-  .map(([k, [price, mom]]) => {
+const topDistricts = allPriceEntries()
+  .map(([k, record]) => {
     const [city, name] = k.split("|");
-    return { city, name, price, mom };
+    return { city, name, price: record.price, mom: record.mom, supplemental: record.supplemental };
   })
   .sort((a, b) => b.price - a.price)
   .slice(0, 12);
 const maxCityPrice = Math.max(...cityStats.map(([, price]) => price), 1);
 
 const sourceNotes = [
-  `内地9市：禧泰数据/中国房价行情，住宅挂牌均价，${mainlandPeriodText}；最近抓取 ${fetchedAtText}。`,
-  `香港：中原地产 Centadata，分区领先指数与成交数据，${hkPeriodText}。`,
-  `澳门：澳门统计暨普查局住宅楼价指数，${macauPeriodText}。`,
-  "底图：阿里云 DataV.GeoAtlas 行政区划边界；大鹏新区按功能区单列，无单列房价时为浅灰。"
+  `主数据：禧泰数据/中国房价行情，内地住宅挂牌均价，${mainlandPeriodText}；最近抓取 ${fetchedAtText}。`,
+  "※补充：香港按差估署RVD私宅均价与Centadata分区指数折算；澳门按统计暨普查局住宅楼价指数折算；中山缺口镇街用房天下二手房参考均价。",
+  "城市边界：深色线为9+2城市范围；白线为区县/镇街边界。大鹏新区按功能区从龙岗区面中单列。"
 ];
 
 let svg = `<?xml version="1.0" encoding="UTF-8"?>
@@ -525,8 +623,9 @@ let svg = `<?xml version="1.0" encoding="UTF-8"?>
     text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", Arial, sans-serif; fill: #21313a; }
     .small { font-size: 20px; fill: #5c6b70; }
     .tiny { font-size: 17px; fill: #66777c; }
-    .label { font-size: 18px; font-weight: 700; paint-order: stroke; stroke: rgba(255,255,255,.82); stroke-width: 5px; stroke-linejoin: round; }
-    .price { font-size: 15px; font-weight: 700; fill: #30444b; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4px; }
+    .label { font-size: 20px; font-weight: 900; fill: #0e5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 5px; stroke-linejoin: round; }
+    .price { font-size: 14px; font-weight: 800; fill: #26383f; paint-order: stroke; stroke: rgba(255,255,255,.9); stroke-width: 3.4px; }
+    .supplement { fill: #6f2f5f; }
     .panelTitle { font-size: 26px; font-weight: 800; fill: #1c2f36; }
     .num { font-size: 26px; font-weight: 800; fill: #173864; }
   </style>
@@ -534,7 +633,7 @@ let svg = `<?xml version="1.0" encoding="UTF-8"?>
 <rect width="${W}" height="${H}" fill="url(#bg)"/>
 <path d="M0 1040 C330 980 520 1110 860 1040 S1390 910 1800 1020 L1800 1320 L0 1320Z" fill="#e8f1ec" opacity=".78"/>
 <text x="64" y="82" font-size="44" font-weight="900">粤港澳大湾区房价地图</text>
-<text x="64" y="122" class="small">9+2 城市，区县/镇街可得数据；面内标签单位：万/㎡，右侧保留元/㎡明细</text>
+<text x="64" y="122" class="small">9+2 城市，区县/镇街可得数据；面内标签单位：万/㎡，※为补充口径</text>
 <text x="64" y="154" class="tiny">数据更新：内地 ${esc(mainlandPeriodText)}；港澳 ${esc(hkPeriodText)} / ${esc(macauPeriodText)}。抓取：${esc(fetchedAtText)}；生成：${esc(generatedAtText)}</text>
 <g filter="url(#softShadow)"><rect x="38" y="178" width="1180" height="990" rx="20" fill="#ffffff" opacity=".84"/></g>
 <rect x="38" y="178" width="1180" height="990" rx="20" fill="#ffffff" opacity=".7" stroke="#dbe6e3"/>
@@ -542,8 +641,12 @@ let svg = `<?xml version="1.0" encoding="UTF-8"?>
 
 for (const f of features) {
   const key = `${f.properties.city}|${f.properties.name}`;
-  const data = mainlandData[key];
-  svg += `<path d="${geomToPath(f.geometry)}" fill="${colorFor(data && data[0], f.properties.city)}" stroke="#ffffff" stroke-width="1.15" opacity="${data || ["香港","澳门"].includes(f.properties.city) ? 0.96 : 0.64}"/>`;
+  const record = getPriceRecord(f.properties.city, f.properties.name);
+  svg += `<path d="${geomToPath(f.geometry)}" fill="${colorFor(record?.price)}" stroke="#ffffff" stroke-width="1.15" opacity="${record ? 0.96 : 0.64}"/>`;
+}
+
+for (const f of cityOutlineFeatures) {
+  svg += `<path d="${geomToPath(f.geometry)}" fill="none" stroke="#163f49" stroke-width="2.6" opacity=".72"/>`;
 }
 
 for (const [city, center] of Object.entries(cityCenters)) {
@@ -551,22 +654,22 @@ for (const [city, center] of Object.entries(cityCenters)) {
   svg += `<text x="${x}" y="${y}" class="label" text-anchor="middle">${esc(city)}</text>`;
 }
 
-for (const f of mainland) {
+for (const f of features) {
   const key = `${f.properties.city}|${f.properties.name}`;
-  const data = mainlandData[key];
-  if (!data && !f.properties.showName) continue;
+  const record = getPriceRecord(f.properties.city, f.properties.name);
+  if (!record && !f.properties.showName) continue;
   const [x, y] = centroidOfFeature(f);
-  if (data && data[0] < 9000 && !["东莞市", "中山市"].includes(f.properties.name)) continue;
-  const label = `${cleanAdminName(f.properties.name)}${data ? ` ${fmtWanLabel(data[0])}` : ""}`;
-  svg += `<text x="${x}" y="${y + 18}" class="price" text-anchor="middle">${esc(label)}</text>`;
+  if (record && record.price < 9000 && !["东莞市", "中山市"].includes(f.properties.name)) continue;
+  const label = `${cleanAdminName(f.properties.name)}${record ? ` ${fmtWanLabel(record.price)}${sourceMark(record)}` : ""}`;
+  svg += `<text x="${x}" y="${y + 18}" class="price${record?.supplemental ? " supplement" : ""}" text-anchor="middle">${esc(label)}</text>`;
 }
 
 const lx = 80, ly = 1062;
 svg += `<g>
-<text x="${lx}" y="${ly - 24}" font-size="22" font-weight="800">色阶：内地住宅挂牌均价（万/㎡）</text>`;
+<text x="${lx}" y="${ly - 24}" font-size="22" font-weight="800">色阶：住宅均价（万/㎡）</text>`;
 for (let i = 0; i < colors.length; i++) {
   const x = lx + i * 92;
-  const label = i === 0 ? `<${fmtWanNumber(breaks[1])}万` : i === colors.length - 1 ? `${fmtWanNumber(breaks[i])}万+` : `${fmtWanNumber(breaks[i])}-${fmtWanNumber(breaks[i + 1])}万`;
+  const label = legendLabel(i);
   svg += `<rect x="${x}" y="${ly}" width="82" height="22" rx="4" fill="${colors[i]}"/><text x="${x}" y="${ly + 46}" class="tiny">${label}</text>`;
 }
 svg += `</g>`;
@@ -609,7 +712,7 @@ svg += `<g transform="translate(64 1194)">
 topDistricts.forEach((d, i) => {
   const x = (i % 6) * 186;
   const y = 38 + Math.floor(i / 6) * 42;
-  svg += `<text x="${x}" y="${y}" font-size="18" font-weight="800">${i + 1}. ${d.city}${d.name.replace(d.city, "")}</text><text x="${x}" y="${y + 21}" class="tiny">${fmt(d.price)} 元/㎡ ${d.mom}</text>`;
+  svg += `<text x="${x}" y="${y}" font-size="18" font-weight="800">${i + 1}. ${d.city}${d.name.replace(d.city, "")}${d.supplemental ? "※" : ""}</text><text x="${x}" y="${y + 21}" class="tiny">${fmt(d.price)} 元/㎡ ${d.mom}</text>`;
 });
 svg += `</g>`;
 
@@ -624,8 +727,9 @@ fs.writeFileSync(OUT_SVG, svg, "utf8");
 fs.writeFileSync(OUT_HTML, `<!doctype html><meta charset="utf-8"><title>GBA House Price Map</title><style>body{margin:0;background:#f7faf8}svg{display:block;width:${W}px;height:${H}px}</style>${svg}`, "utf8");
 const interactiveRegions = features.map((f, index) => {
   const key = `${f.properties.city}|${f.properties.name}`;
-  const price = mainlandData[key]?.[0] || null;
-  const mom = mainlandData[key]?.[1] || "";
+  const record = getPriceRecord(f.properties.city, f.properties.name);
+  const price = record?.price || null;
+  const mom = record?.mom || "";
   const [cx, cy, labelBox] = bestLabelPoint(f);
   const cleanName = cleanAdminName(f.properties.name);
   const minLabelScale = price
@@ -640,14 +744,23 @@ const interactiveRegions = features.map((f, index) => {
     label: cleanName,
     price,
     mom,
+    source: record?.source || "",
+    quality: record?.quality || "",
+    note: record?.note || "",
+    supplemental: Boolean(record?.supplemental),
     showName: Boolean(f.properties.showName),
     d: geomToPath(f.geometry),
     cx: Number(cx.toFixed(2)),
     cy: Number(cy.toFixed(2)),
     labelMinScale: Number(minLabelScale.toFixed(2)),
-    fill: colorFor(price, f.properties.city),
+    fill: colorFor(price),
   };
 });
+const interactiveCityBoundaries = cityOutlineFeatures.map((f, index) => ({
+  id: `c${index}`,
+  city: f.properties.city,
+  d: geomToPath(f.geometry),
+}));
 const interactivePoints = [];
 
 const interactiveHtml = `<!doctype html>
@@ -714,11 +827,14 @@ const interactiveHtml = `<!doctype html>
   .region:hover, .region.active { stroke: #102a33; stroke-width: 2.8; filter: drop-shadow(0 5px 8px rgba(25,55,65,.25)); }
   .mapTilesOn .region { fill-opacity: var(--overlay-opacity); stroke-opacity: .88; }
   .mapTilesOn .cityLabel, .mapTilesOn .detailLabel { stroke: rgba(255,255,255,.95); }
+  .cityBoundary { fill: none; stroke: #153f49; stroke-width: 2.1; vector-effect: non-scaling-stroke; pointer-events: none; opacity: .7; }
+  .mapTilesOn .cityBoundary { stroke-opacity: .86; }
   .townPoint { stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; filter: drop-shadow(0 3px 5px rgba(25,55,65,.25)); }
   .townPoint:hover, .townPoint.active { stroke: #102a33; stroke-width: 3; }
   .dimmed { opacity: .18; }
-  .cityLabel { font-size: 16px; font-weight: 800; paint-order: stroke; stroke: rgba(255,255,255,.86); stroke-width: 4px; pointer-events: none; }
-  .detailLabel { display: none; font-size: 9px; font-weight: 800; paint-order: stroke; stroke: rgba(255,255,255,.92); stroke-width: 2.2px; pointer-events: none; }
+  .cityLabel { font-size: 17px; font-weight: 900; fill: #0c5261; paint-order: stroke; stroke: rgba(255,255,255,.88); stroke-width: 4.4px; pointer-events: none; }
+  .detailLabel { display: none; font-size: 8.2px; font-weight: 800; fill: #25363d; paint-order: stroke; stroke: rgba(255,255,255,.94); stroke-width: 2px; pointer-events: none; }
+  .detailLabel.supplementalLabel { fill: #6f2f5f; }
   .tileImage { opacity: .78; }
   .legend {
     position: absolute;
@@ -731,9 +847,9 @@ const interactiveHtml = `<!doctype html>
     padding: 12px 14px;
   }
   .legendTitle { font-weight: 800; margin-bottom: 8px; }
-  .swatches { display: flex; gap: 8px; align-items: center; }
-  .swatch { width: 46px; height: 16px; border-radius: 4px; }
-  .legendLabels { display: grid; grid-template-columns: repeat(7, 46px); gap: 8px; margin-top: 6px; color: var(--muted); font-size: 11px; }
+  .swatches { display: flex; gap: 6px; align-items: center; }
+  .swatch { width: 58px; height: 16px; border-radius: 4px; }
+  .legendLabels { display: grid; grid-template-columns: repeat(${colors.length}, 58px); gap: 6px; margin-top: 6px; color: var(--muted); font-size: 10.5px; white-space: nowrap; }
   .tileAttribution {
     position: absolute;
     right: 18px;
@@ -829,6 +945,7 @@ const interactiveHtml = `<!doctype html>
   .row:hover, .row.active { background: #edf6f4; }
   .row b { font-size: 14px; }
   .row .price { color: #173864; font-weight: 800; }
+  .sourceMark { color: #7d3569; font-weight: 900; margin-left: 3px; }
   .up { color: #087b60; }
   .down { color: #bd4c45; }
   .notes { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: 12px; line-height: 1.7; }
@@ -862,8 +979,8 @@ const interactiveHtml = `<!doctype html>
     }
     svg { height: 72svh; }
     .legend { left: 12px; bottom: 12px; padding: 10px; border-radius: 10px; max-width: calc(100vw - 40px); }
-    .swatch { width: 34px; }
-    .legendLabels { grid-template-columns: repeat(7, 34px); gap: 8px; font-size: 10px; }
+    .swatch { width: 36px; }
+    .legendLabels { grid-template-columns: repeat(${colors.length}, 36px); gap: 5px; font-size: 9px; }
     .tileAttribution { right: 12px; bottom: 10px; font-size: 10px; }
     .side { padding: 14px; border-radius: 10px; }
     .sortBar { grid-template-columns: repeat(2, 1fr); }
@@ -893,7 +1010,10 @@ const interactiveHtml = `<!doctype html>
     <svg id="map" viewBox="${mapViewBox.x.toFixed(2)} ${mapViewBox.y.toFixed(2)} ${mapViewBox.w.toFixed(2)} ${mapViewBox.h.toFixed(2)}" aria-label="粤港澳大湾区房价地图">
       <g id="viewport">
         <g id="tileLayer"></g>
-        ${interactiveRegions.map(r => `<path id="${r.id}" class="region" data-city="${esc(r.city)}" data-name="${esc(r.name)}" data-price="${r.price ?? ""}" data-mom="${esc(r.mom)}" d="${r.d}" fill="${r.fill}"></path>`).join("\n")}
+        ${interactiveRegions.map(r => `<path id="${r.id}" class="region" data-city="${esc(r.city)}" data-name="${esc(r.name)}" data-price="${r.price ?? ""}" data-mom="${esc(r.mom)}" data-source="${esc(r.source)}" d="${r.d}" fill="${r.fill}"></path>`).join("\n")}
+        <g id="cityBoundaries">
+          ${interactiveCityBoundaries.map(r => `<path id="${r.id}" class="cityBoundary" d="${r.d}"></path>`).join("\n")}
+        </g>
         <g id="cityLabels">
           ${Object.entries(cityCenters).map(([city, center]) => {
             const [x, y] = project(center);
@@ -901,8 +1021,8 @@ const interactiveHtml = `<!doctype html>
           }).join("\n")}
         </g>
         <g id="detailLabels">
-          ${interactiveRegions.filter(r => r.price || r.showName).map(r => `<text class="detailLabel" x="${r.cx}" y="${r.cy}" data-min-scale="${r.labelMinScale}" text-anchor="middle">${esc(r.label)}${r.price ? ` ${fmtWanLabel(r.price)}` : ""}</text>`).join("\n")}
-          ${interactivePoints.filter(p => p.price).map(p => `<text class="detailLabel" x="${p.x}" y="${p.y - 12}" text-anchor="middle">${esc(p.name.replace(/[区县市镇]/g, ""))} ${fmtWanLabel(p.price)}</text>`).join("\n")}
+          ${interactiveRegions.filter(r => r.price || r.showName).map(r => `<text class="detailLabel${r.supplemental ? " supplementalLabel" : ""}" x="${r.cx}" y="${r.cy}" data-min-scale="${r.labelMinScale}" text-anchor="middle">${esc(r.label)}${r.price ? ` ${fmtWanLabel(r.price)}${r.supplemental ? "※" : ""}` : ""}</text>`).join("\n")}
+          ${interactivePoints.filter(p => p.price).map(p => `<text class="detailLabel${p.supplemental ? " supplementalLabel" : ""}" x="${p.x}" y="${p.y - 12}" text-anchor="middle">${esc(p.name.replace(/[区县市镇]/g, ""))} ${fmtWanLabel(p.price)}${p.supplemental ? "※" : ""}</text>`).join("\n")}
         </g>
         <g id="townPoints">
           ${interactivePoints.map(p => `<circle id="${p.id}" class="townPoint" data-city="${esc(p.city)}" data-name="${esc(p.name)}" data-price="${p.price ?? ""}" data-mom="${esc(p.mom)}" cx="${p.x}" cy="${p.y}" r="6" fill="${p.fill}"></circle>`).join("\n")}
@@ -910,15 +1030,15 @@ const interactiveHtml = `<!doctype html>
       </g>
     </svg>
     <div class="legend">
-      <div class="legendTitle">内地住宅挂牌均价（万/㎡）</div>
+      <div class="legendTitle">住宅均价（万/㎡）</div>
       <div class="swatches">${colors.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div>
-      <div class="legendLabels"><span>&lt;0.8</span><span>0.8-1.2</span><span>1.2-1.8</span><span>1.8-3</span><span>3-5</span><span>5-8</span><span>8+</span></div>
+      <div class="legendLabels">${colors.map((_, index) => `<span>${esc(legendLabel(index))}</span>`).join("")}</div>
     </div>
     <div class="tileAttribution">地图 © OpenStreetMap contributors</div>
   </section>
   <aside class="side">
     <h2>区县/城市数据</h2>
-    <p class="caption">内地为 ${esc(mainlandPeriodText)}的住宅挂牌均价；最近抓取 ${esc(fetchedAtText)}。东莞/中山按镇街边界呈现，港澳为独立公开指数口径。</p>
+    <p class="caption">主数据为 ${esc(mainlandPeriodText)}住宅挂牌均价；※为不同来源补充估算。东莞/中山按镇街边界呈现。</p>
     <input id="search" class="search" placeholder="搜索城市或区县，如 南山、广州、东莞">
     <div class="sortBar" aria-label="排序">
       <button data-sort="priceDesc" class="active">价格高</button>
@@ -935,11 +1055,10 @@ const interactiveHtml = `<!doctype html>
     <div id="rows" class="rows"></div>
     <div class="notes">
       <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取内地数据；页面生成 ${esc(generatedAtText)}。<br>
-      <b>香港：</b>中原 Centadata 分区领先指数，${esc(hkPeriodText)}。<br>
-      <b>澳门：</b>统计暨普查局住宅楼价指数，${esc(macauPeriodText)}。<br>
-      <b>深圳：</b>大鹏新区是功能区，已从龙岗区面中单列；房价源未单列时不参与色阶和列表。<br>
-      <b>镇街：</b>东莞、中山没有县级区划，已按 OSM 镇街边界展示；无房价数据的镇街为浅灰。<br>
-      <b>底图：</b>阿里云 DataV.GeoAtlas。港澳口径不同，未纳入元/㎡色阶。
+      <b>※口径：</b>香港按差估署RVD私宅均价与Centadata分区指数折算；澳门按统计暨普查局住宅楼价指数折算；中山缺口镇街用房天下二手房参考均价。<br>
+      <b>边界：</b>深色线为城市范围，白线为区县/镇街边界；东莞、中山没有县级区划，已按 OSM 镇街边界展示。<br>
+      <b>深圳：</b>大鹏新区是功能区，已从龙岗区面中单列；房价源未单列时显示边界但不进列表。<br>
+      <b>底图：</b>阿里云 DataV.GeoAtlas 与 OSM 边界，真实地图来自 OpenStreetMap。
     </div>
   </aside>
 </main>
@@ -991,6 +1110,10 @@ function fmtWan(value) {
 function applyOverlayOpacity() {
   document.documentElement.style.setProperty('--overlay-opacity', overlayOpacity.toFixed(2));
   overlayOpacityValue.textContent = Math.round(overlayOpacity * 100) + '%';
+}
+function applyCityLabelVisibility() {
+  const cityLabels = document.getElementById('cityLabels');
+  cityLabels.style.display = labelsVisible && state.scale < 2.55 ? '' : 'none';
 }
 function clientToSvg(clientX, clientY) {
   const pt = svg.createSVGPoint();
@@ -1144,6 +1267,7 @@ function applyTransform() {
     const min = Number(label.dataset.minScale || 2.2);
     label.style.display = state.scale >= min ? 'block' : 'none';
   });
+  applyCityLabelVisibility();
   updateTiles();
 }
 function zoom(factor, clientX, clientY) {
@@ -1206,8 +1330,9 @@ function selectRegion(id, center = false) {
   const r = places.find(item => item.id === id);
   if (!r) return;
   const isMainland = !['香港', '澳门'].includes(r.city);
+  const sourceLine = r.source ? (r.supplemental ? '※ ' : '') + r.source + (r.quality ? ' · ' + r.quality : '') : '暂无单列口径';
   selected.innerHTML = '<div class="name">' + r.city + ' ' + r.name + '</div>' +
-    (r.price ? '<div class="price">' + fmt(r.price) + ' 元/㎡</div><div class="meta">约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + ' · 住宅挂牌均价</div>' : isMainland ? '<div class="meta">暂无单列房价数据；已按功能区或镇街边界展示。</div>' : '<div class="meta">港澳区域请参考下方独立指数口径。</div>');
+    (r.price ? '<div class="price">' + fmt(r.price) + ' 元/㎡</div><div class="meta">约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + '</div><div class="meta">' + sourceLine + '</div>' : isMainland ? '<div class="meta">暂无单列房价数据；已按功能区或镇街边界展示。</div>' : '<div class="meta">暂无可比房价估算。</div>');
   if (center) {
     state.scale = Math.max(state.scale, 2.3);
     const cx = r.cx ?? r.x;
@@ -1223,8 +1348,9 @@ function showTip(event, r) {
   tooltip.style.display = 'block';
   tooltip.style.left = event.clientX + 'px';
   tooltip.style.top = event.clientY + 'px';
+  const sourceLine = r.source ? ' · ' + (r.supplemental ? '※' : '') + r.source : '';
   tooltip.innerHTML = '<strong>' + r.city + ' ' + r.name + '</strong>' +
-    (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + '</span>' : !['香港', '澳门'].includes(r.city) ? '<span>暂无单列房价数据，已单列边界</span>' : '<span>港澳独立指数口径，见右侧说明</span>');
+    (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + sourceLine + '</span>' : !['香港', '澳门'].includes(r.city) ? '<span>暂无单列房价数据，已单列边界</span>' : '<span>暂无可比房价估算</span>');
 }
 function hideTip() { tooltip.style.display = 'none'; }
 document.querySelectorAll('.region').forEach(el => {
@@ -1292,7 +1418,7 @@ document.getElementById('reset').onclick = () => {
 };
 document.getElementById('toggleLabels').onclick = () => {
   labelsVisible = !labelsVisible;
-  document.getElementById('cityLabels').style.display = labelsVisible ? '' : 'none';
+  applyCityLabelVisibility();
 };
 document.getElementById('toggleTiles').onclick = event => {
   tilesVisible = !tilesVisible;
@@ -1305,7 +1431,8 @@ overlayOpacityInput.addEventListener('input', () => {
   applyOverlayOpacity();
 });
 function momValue(value) {
-  return Number(String(value || '0').replace('%', ''));
+  const parsed = Number(String(value || '0').replace('%', ''));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 function sortPlaces(list) {
   const collator = new Intl.Collator('zh-Hans-CN');
@@ -1324,7 +1451,7 @@ function renderRows(filter = '') {
     .filter(r => r.price)
     .filter(r => !q || (r.city + r.name).toLowerCase().includes(q)));
   rows.innerHTML = main.map(r => '<div class="row" data-id="' + r.id + '">' +
-    '<b>' + r.city + ' ' + r.name + '</b><span class="price">' + fmt(r.price) + '</span><span class="' + (r.mom.startsWith('+') ? 'up' : 'down') + '">' + r.mom + '</span></div>').join('');
+    '<b>' + r.city + ' ' + r.name + (r.supplemental ? '<span class="sourceMark">※</span>' : '') + '</b><span class="price">' + fmt(r.price) + '</span><span class="' + (String(r.mom).startsWith('+') ? 'up' : String(r.mom).startsWith('-') ? 'down' : '') + '">' + r.mom + '</span></div>').join('');
   rows.querySelectorAll('.row').forEach(row => {
     row.onclick = () => selectRegion(row.dataset.id, true);
   });
