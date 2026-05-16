@@ -830,6 +830,7 @@ const interactiveHtml = `<!doctype html>
   button.active { border-color: #2f89a6; background: #edf7f6; color: #1f6677; font-weight: 800; }
   svg { width: 100%; height: calc(100vh - 48px); display: block; cursor: grab; touch-action: none; user-select: none; }
   svg.dragging { cursor: grabbing; }
+  #viewport { will-change: transform; }
   .regionSeal { stroke-width: 2.8; pointer-events: none; opacity: .98; }
   #priceOverlay { transition: opacity .15s; }
   .mapTilesOn #priceOverlay { opacity: var(--overlay-opacity); }
@@ -1208,6 +1209,12 @@ let overlayOpacity = Number(overlayOpacityInput.value) / 100;
 let labelScale = Number(labelScaleInput.value) / 100;
 let lastTileKey = '';
 let rowEls = [];
+let renderFrame = 0;
+let renderForceLabels = false;
+let renderImmediateTiles = false;
+let lastRenderedScale = 0;
+let tileUpdateTimer = 0;
+let tooltipPlaceId = '';
 const minScale = 0.7;
 const maxScale = 12;
 const projection = {
@@ -1394,18 +1401,50 @@ function updateTiles() {
   }
   tileLayer.innerHTML = tiles.join('');
 }
-function applyTransform() {
+function requestTileUpdate(immediate = false) {
+  if (tileUpdateTimer) {
+    clearTimeout(tileUpdateTimer);
+    tileUpdateTimer = 0;
+  }
+  if (!tilesVisible || immediate) {
+    updateTiles();
+    return;
+  }
+  tileUpdateTimer = setTimeout(() => {
+    tileUpdateTimer = 0;
+    updateTiles();
+  }, 90);
+}
+function applyTransform(options = {}) {
+  const forceLabels = !!options.forceLabels;
   clampPan();
   viewport.setAttribute('transform', 'translate(' + state.x + ' ' + state.y + ') scale(' + state.scale + ')');
-  const inverse = 1 / state.scale;
-  labelEls.forEach(label => {
-    label.el.setAttribute('transform', 'translate(' + label.x + ' ' + label.y + ') scale(' + inverse + ') translate(' + -label.x + ' ' + -label.y + ')');
+  const scaleChanged = forceLabels || Math.abs(state.scale - lastRenderedScale) > 0.001;
+  if (scaleChanged) {
+    const inverse = 1 / state.scale;
+    labelEls.forEach(label => {
+      label.el.setAttribute('transform', 'translate(' + label.x + ' ' + label.y + ') scale(' + inverse + ') translate(' + -label.x + ' ' + -label.y + ')');
+    });
+    detailLabelEls.forEach(label => {
+      label.el.style.display = state.scale >= label.minScale ? 'block' : 'none';
+    });
+    applyCityLabelVisibility();
+    lastRenderedScale = state.scale;
+  }
+  if (tilesVisible || lastTileKey) requestTileUpdate(!!options.immediateTiles);
+}
+function scheduleTransform(options = {}) {
+  renderForceLabels = renderForceLabels || !!options.forceLabels;
+  renderImmediateTiles = renderImmediateTiles || !!options.immediateTiles;
+  if (renderFrame) return;
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = 0;
+    const forceLabels = renderForceLabels;
+    const immediateTiles = renderImmediateTiles;
+    renderForceLabels = false;
+    renderImmediateTiles = false;
+    applyTransform({ forceLabels, immediateTiles });
   });
-  detailLabelEls.forEach(label => {
-    label.el.style.display = state.scale >= label.minScale ? 'block' : 'none';
-  });
-  applyCityLabelVisibility();
-  updateTiles();
 }
 function zoom(factor, clientX, clientY) {
   const rect = svg.getBoundingClientRect();
@@ -1415,7 +1454,7 @@ function zoom(factor, clientX, clientY) {
   state.x = anchor.x - content.x * nextScale;
   state.y = anchor.y - content.y * nextScale;
   state.scale = nextScale;
-  applyTransform();
+  scheduleTransform({ forceLabels: true });
 }
 function setHighlightPath(el, r) {
   if (r && r.d) {
@@ -1506,18 +1545,24 @@ function selectRegion(id, center = false) {
     const centerPoint = clientToSvg(rect.left + rect.width / 2, rect.top + rect.height / 2);
     state.x = centerPoint.x - cx * state.scale;
     state.y = centerPoint.y - cy * state.scale;
-    applyTransform();
+    applyTransform({ forceLabels: true, immediateTiles: true });
   }
 }
 function showTip(event, r) {
   tooltip.style.display = 'block';
   tooltip.style.left = event.clientX + 'px';
   tooltip.style.top = event.clientY + 'px';
-  const sourceLine = r.source ? ' · ' + (r.supplemental ? '※' : '') + r.source : '';
-  tooltip.innerHTML = '<strong>' + r.city + ' ' + r.name + '</strong>' +
-    (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + sourceLine + '</span>' : !['香港', '澳门'].includes(r.city) ? '<span>暂无单列房价数据，已单列边界</span>' : '<span>暂无可比房价估算</span>');
+  if (tooltipPlaceId !== r.id) {
+    tooltipPlaceId = r.id;
+    const sourceLine = r.source ? ' · ' + (r.supplemental ? '※' : '') + r.source : '';
+    tooltip.innerHTML = '<strong>' + r.city + ' ' + r.name + '</strong>' +
+      (r.price ? '<span>' + fmt(r.price) + ' 元/㎡ · 约 ' + fmtWan(r.price) + ' · 环比 ' + r.mom + sourceLine + '</span>' : !['香港', '澳门'].includes(r.city) ? '<span>暂无单列房价数据，已单列边界</span>' : '<span>暂无可比房价估算</span>');
+  }
 }
-function hideTip() { tooltip.style.display = 'none'; }
+function hideTip() {
+  tooltip.style.display = 'none';
+  tooltipPlaceId = '';
+}
 regionEls.forEach(el => {
   const r = placeById.get(el.id);
   el.addEventListener('mousemove', event => {
@@ -1579,7 +1624,7 @@ window.addEventListener('pointermove', event => {
     state.x = anchor.x - pinch.content.x * nextScale;
     state.y = anchor.y - pinch.content.y * nextScale;
     state.scale = nextScale;
-    applyTransform();
+    scheduleTransform({ forceLabels: true });
     return;
   }
   if (!dragging) return;
@@ -1588,19 +1633,19 @@ window.addEventListener('pointermove', event => {
   state.x += point.x - last.x;
   state.y += point.y - last.y;
   last = point;
-  applyTransform();
+  scheduleTransform();
 });
 window.addEventListener('pointerup', endPointer);
 window.addEventListener('pointercancel', endPointer);
 window.addEventListener('resize', () => {
   applyResponsiveSvgMode();
-  applyTransform();
+  scheduleTransform({ forceLabels: true, immediateTiles: true });
 });
 document.getElementById('zoomIn').onclick = () => zoom(1.22);
 document.getElementById('zoomOut').onclick = () => zoom(0.82);
 document.getElementById('reset').onclick = () => {
   state = { scale: 1, x: 0, y: 0 };
-  applyTransform();
+  scheduleTransform({ forceLabels: true, immediateTiles: true });
 };
 document.getElementById('toggleLabels').onclick = () => {
   labelsVisible = !labelsVisible;
@@ -1610,7 +1655,7 @@ document.getElementById('toggleTiles').onclick = event => {
   tilesVisible = !tilesVisible;
   event.currentTarget.classList.toggle('active', tilesVisible);
   mapShell.classList.toggle('mapTilesOn', tilesVisible);
-  updateTiles();
+  requestTileUpdate(true);
 };
 overlayOpacityInput.addEventListener('input', () => {
   overlayOpacity = Number(overlayOpacityInput.value) / 100;
