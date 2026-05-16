@@ -2,14 +2,8 @@
 
 静态站点入口是 `index.html`，可直接通过 GitHub Pages 部署。
 
-- `index.html` / `china.html`：全国房价地图
-- `gba.html`：粤港澳大湾区房价地图
-- `jingjinji.html`：京津冀房价地图
-- `yangtze-delta.html`：长三角房价地图
-- `chengyu.html`：成渝地区房价地图
-- `middle-yangtze.html`：长江中游房价地图
-- `west-coast.html`：海峡西岸房价地图
-- `shandong-peninsula.html`：山东半岛房价地图
+- `index.html` / `china.html`：全国渐进式房价地图
+- `gba.html`、`jingjinji.html`、`yangtze-delta.html` 等旧专题入口：自动跳转到全国地图的对应视角
 
 ## 本地预览
 
@@ -33,9 +27,10 @@ http://127.0.0.1:8765/jingjinji.html
 ## 数据口径
 
 - 全国城市：禧泰数据/中国房价行情首页城市排行，住宅挂牌均价；GitHub Actions 每周一 04:00（北京时间）尝试抓取最新页面并重新生成站点。
-- 大湾区、京津冀：重点经济圈专题，尽量使用区县/镇街边界和更细房价数据。
+- 渐进细化：全国初始显示城市级边界；放大到大湾区、京津冀时会自动加载额外的区县/镇街细节图层。
+- 大湾区、京津冀：重点经济圈细节层，尽量使用区县/镇街边界和更细房价数据。
 - 京津冀：北京、天津使用区县住宅挂牌均价；河北目前抓取源区县行不完整，页面展示区县/县级边界，但房价采用所在城市均价。
-- 其他经济圈专题：先使用城市级边界和城市住宅挂牌均价，后续可按需要逐步补区县级数据。
+- 其他经济圈：目前作为快捷视角；后续拿到细数据后继续接入同一张渐进地图。
 - `※` 标记：表示该区域使用不同来源的补充估算，便于和主数据一起粗略对比。
 - 香港：按香港差饷物业估价署（RVD）私人住宅均价与 Centadata 分区指数折算为人民币/㎡。
 - 澳门：按澳门统计暨普查局 2026 年第一季住宅楼价指数折算为人民币/㎡。
@@ -48,10 +43,10 @@ http://127.0.0.1:8765/jingjinji.html
 ## 生成脚本
 
 - `generate_all_maps.js`：统一生成所有地图页面。
-- `generate_china_map.js`：生成全国城市级总览，并同步写入 `index.html` 和 `china.html`。
+- `generate_china_map.js`：生成全国渐进式地图，并同步写入 `index.html` 和 `china.html`，同时输出 `data/layers/*` 细节图层。
 - `generate_gba_house_price_map.js`：生成大湾区页面和静态 SVG/HTML。
 - `generate_jjj_map.js`：基于 `src/simple_map_core.js` 生成京津冀页面。
-- `generate_topic_maps.js`：生成长三角、成渝、长江中游、海峡西岸、山东半岛等城市级专题。
+- `generate_redirect_pages.js`：把旧专题 URL 改成全国地图的快捷视角入口。
 - `src/simple_map_core.js`：可复用的 SVG 交互地图核心，后续新增区域优先复用它。
 
 手动更新可以在 Actions 页面运行 `Deploy GitHub Pages` 工作流，或本地执行：

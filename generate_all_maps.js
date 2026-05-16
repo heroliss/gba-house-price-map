@@ -14,6 +14,5 @@ function run(script) {
 }
 
 run("generate_gba_house_price_map.js");
-run("generate_jjj_map.js");
 run("generate_china_map.js");
-run("generate_topic_maps.js");
+run("generate_redirect_pages.js");

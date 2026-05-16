@@ -37,7 +37,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/gba_house_prices.json data/jjj_house_prices.json data/china_house_prices.json index.html china.html gba.html jingjinji.html yangtze-delta.html chengyu.html middle-yangtze.html west-coast.html shandong-peninsula.html gba_house_price_map_2026_04.html gba_house_price_map_2026_04.svg
+          git add data/gba_house_prices.json data/jjj_house_prices.json data/china_house_prices.json data/layers/*.json index.html china.html gba.html jingjinji.html yangtze-delta.html chengyu.html middle-yangtze.html west-coast.html shandong-peninsula.html gba_house_price_map_2026_04.html gba_house_price_map_2026_04.svg
           if ! git diff --cached --quiet; then
             git commit -m "Update weekly house price data"
             git push
