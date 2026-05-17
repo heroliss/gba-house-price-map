@@ -79,6 +79,7 @@
   .levelBadge { border:1px solid #c9d8d5; border-radius:999px; color:#49666d; font-size:11px; font-weight:800; line-height:1; padding:4px 6px; background:#f7faf8; white-space:nowrap; }
   .levelBadge.inherited { border-color:#e4c17b; color:#7a5a10; background:#fff8df; }
   .levelBadge.district { border-color:#9ccfc8; color:#17675d; background:#eaf8f6; }
+  .levelBadge.supplement { border-color:#c6b4e8; color:#5b3d8a; background:#f4efff; }
   .locateRow { height:28px; padding:0 9px; font-size:12px; white-space:nowrap; }
   .up { color:#087b60; } .down { color:#bd4c45; }
   .notes { margin-top:18px; border-top:1px solid var(--line); padding-top:14px; font-size:12px; }
@@ -90,7 +91,7 @@
 <body>
 <main class="app">
   <section class="mapShell">
-    <header><h1>全国房价地图</h1><p>一张地图渐进细化；放大后自动加载区县边界和价格标签</p><p>数据：312个城市；最近抓取：2026-05-17 11:33 北京时间</p></header>
+    <header><h1>全国房价地图</h1><p>一张地图渐进细化；放大后自动加载区县边界和价格标签</p><p>数据：312个城市；最近抓取：2026-05-17 16:22 北京时间</p></header>
     
     <div class="toolbar"><button id="zoomIn" title="放大地图" aria-label="放大地图">+</button><button id="zoomOut" title="缩小地图" aria-label="缩小地图">-</button><button id="reset" title="回到初始视图">重置视图</button><button id="toggleLabels" title="显示或隐藏城市、区县和房价标注">隐藏标注</button><button id="toggleTiles" title="叠加真实地图底图">真实底图</button></div>
     <div class="labelControl mapControl"><label for="labelScale">标注大小</label><input id="labelScale" type="range" min="50" max="200" value="100"><span id="labelScaleValue">100%</span></div>
@@ -117,11 +118,11 @@
     <div id="selected" class="selected"><div class="name">点击或悬停地图区域</div><div class="meta">可查看房价、环比和数据口径。</div></div>
     <div id="rows" class="rows"></div>
     <div class="notes">
-      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 2026-05-17 11:33 北京时间。<br>
+      <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 2026-05-17 16:23 北京时间。<br>
       <b>渐进细化：</b>全国初始为城市级；缩放到任意地区时按省份懒加载区县级边界，避免一次性加载过重。<br>
-      <b>覆盖：</b>当前全国底图 370 个城市级区域，已匹配房价 312 个；区县级细节 2927 个区域，独立区县数据 1069 个，沿用市均 1638 个。<br>
-      <b>口径：</b>主数据为禧泰数据/中国房价行情城市住宅挂牌均价；香港、澳门使用补充估算并以不同口径标注。<br>
-      <b>说明：</b>标签或列表中的“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价；详情面板会标注“沿用市均”。
+      <b>覆盖：</b>当前全国底图 370 个城市级区域，已匹配房价 312 个；区县级细节 2927 个区域，独立区县数据 1525 个（补充来源 456 个），沿用市均 1182 个。<br>
+      <b>口径：</b>主数据为禧泰数据/中国房价行情城市住宅挂牌均价；缺口区县用房天下查房价二手房参考均价补充；香港、澳门使用补充估算并以不同口径标注。<br>
+      <b>说明：</b>标签或列表中的“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价；“补充”表示来自非主来源的区县均价。
     </div>
   </aside>
 </main>
@@ -148,7 +149,7 @@ let state={scale:1,x:0,y:0},dragging=false,last=null,activePointers=new Map(),pi
 const loadedDetailSources=new Set(),loadingDetailSources=new Set();
 const minScale=.7,maxScale=180,maxDetailLoadsPerPass=3,projection={"minX":73.506474,"minY":3.843024291539115,"maxX":135.094557,"maxY":63.67205987533639,"scale":16.914863997474615,"ox":145.12297609491065,"oy":1168},mapBounds={"minX":145.12297609491065,"minY":155.9999999999999,"maxX":1186.8770239050893,"maxY":1168};
 function fmt(value){return Number(value).toLocaleString('zh-CN')} function fmtWan(value){return Number((Number(value)/10000).toFixed(1)).toLocaleString('zh-CN',{maximumFractionDigits:1})+'万'} function escapeHtml(value){return String(value??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
-function isInherited(r){return !!(r&& (r.inherited||r.dataLevel==='city-inherited'||String(r.quality||'').includes('用于区县底色')))} function levelText(r){if(!r?.price)return '';if(isInherited(r))return '沿用市均';if(r.dataLevel==='district'||String(r.quality||'').includes('区县'))return '区县数据';if(r.dataLevel==='city')return '城市数据';return r.supplemental?'补充口径':'公开数据'} function levelClass(r){return isInherited(r)?'levelBadge inherited':(r.dataLevel==='district'||String(r.quality||'').includes('区县')?'levelBadge district':'levelBadge')} function labelText(r){return escapeHtml(r.label)+' '+fmtWan(r.price)+(isInherited(r)?' 市均':'')} function sourceLine(r){return [levelText(r),r.quality,r.source].filter(Boolean).join(' · ')}
+function isInherited(r){return !!(r&& (r.inherited||r.dataLevel==='city-inherited'||String(r.quality||'').includes('用于区县底色')))} function isSupplement(r){return !!(r&&(r.dataLevel==='district-supplement'||(r.supplemental&&!isInherited(r))))} function levelText(r){if(!r?.price)return '';if(isInherited(r))return '沿用市均';if(isSupplement(r))return '补充数据';if(r.dataLevel==='district'||String(r.quality||'').includes('区县'))return '区县数据';if(r.dataLevel==='city')return '城市数据';return '公开数据'} function levelClass(r){return isInherited(r)?'levelBadge inherited':(isSupplement(r)?'levelBadge supplement':(r.dataLevel==='district'||String(r.quality||'').includes('区县')?'levelBadge district':'levelBadge'))} function labelText(r){return escapeHtml(r.label)+' '+fmtWan(r.price)+(isInherited(r)?' 市均':'')} function sourceLine(r){return [levelText(r),r.quality,r.source].filter(Boolean).join(' · ')}
 function applyOverlayOpacity(){document.documentElement.style.setProperty('--overlay-opacity',overlayOpacity.toFixed(2));overlayOpacityValue.textContent=Math.round(overlayOpacity*100)+'%'} function applyLabelScale(){document.documentElement.style.setProperty('--label-scale',labelScale.toFixed(2));labelScaleValue.textContent=Math.round(labelScale/labelScaleBase*100)+'%'} function applyMapLabelVisibility(){cityLabels.style.display=labelsVisible&&state.scale<2.55?'':'none';detailLabelEls.forEach(label=>label.el.style.display=labelsVisible&&state.scale>=label.minScale?'block':'none');toggleLabelsButton.textContent=labelsVisible?'隐藏标注':'显示标注';toggleLabelsButton.classList.toggle('active',labelsVisible)}
 function viewMetrics(){if(viewMetricCache)return viewMetricCache;const rect=svg.getBoundingClientRect(),box=svg.viewBox.baseVal,scale=Math.min(rect.width/box.width,rect.height/box.height)||1,drawnW=box.width*scale,drawnH=box.height*scale;return viewMetricCache={box,scale,offsetX:rect.left+(rect.width-drawnW)/2,offsetY:rect.top+(rect.height-drawnH)/2}} function clientToSvg(clientX,clientY){const m=viewMetrics();return{x:m.box.x+(clientX-m.offsetX)/m.scale,y:m.box.y+(clientY-m.offsetY)/m.scale}} function clientDeltaToSvg(dx,dy){const m=viewMetrics();return{x:dx/m.scale,y:dy/m.scale}} function svgToContent(point){return{x:(point.x-state.x)/state.scale,y:(point.y-state.y)/state.scale}}
 function svgVisibleBox(){const box=svg.viewBox.baseVal;return{minX:box.x,minY:box.y,maxX:box.x+box.width,maxY:box.y+box.height}}

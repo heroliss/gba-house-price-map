@@ -225,7 +225,44 @@ function buildSupplementalLookup(table, source, quality) {
     if (!city || !area) continue;
     const record = { price: value[0], mom: value[1], source, quality, dataLevel: "district" };
     exact.set(`${city}|${area}`, record);
-    normalized.set(`${normalizeCity(city)}|${normalizeCity(area)}`, record);
+    const normalizedKey = `${normalizeCity(city)}|${normalizeCity(area)}`;
+    if (!normalized.has(normalizedKey)) normalized.set(normalizedKey, record);
+  }
+  return (city, name) => exact.get(`${city}|${name}`)
+    || exact.get(`${city.replace(/市$/, "")}|${name}`)
+    || exact.get(`${city}|${name}市`)
+    || normalized.get(`${normalizeCity(city)}|${normalizeCity(name)}`)
+    || null;
+}
+
+function buildDistrictRecordLookup(chinaData) {
+  const records = chinaData.districtRecords || {};
+  if (!Object.keys(records).length) {
+    return buildSupplementalLookup(
+      chinaData.districtData,
+      "禧泰数据/中国房价行情",
+      "区县住宅挂牌均价",
+    );
+  }
+
+  const exact = new Map();
+  const normalized = new Map();
+  for (const [key, value] of Object.entries(records)) {
+    const [city, area] = key.split("|");
+    if (!city || !area || !value?.price) continue;
+    const record = {
+      price: value.price,
+      mom: value.mom || "--%",
+      source: value.source || "公开房价数据",
+      quality: value.quality || "区县住宅均价",
+      dataLevel: value.dataLevel || "district",
+      supplemental: Boolean(value.supplemental),
+      url: value.url || "",
+      fetchedAt: value.fetchedAt || "",
+    };
+    exact.set(`${city}|${area}`, record);
+    const normalizedKey = `${normalizeCity(city)}|${normalizeCity(area)}`;
+    if (!normalized.has(normalizedKey)) normalized.set(normalizedKey, record);
   }
   return (city, name) => exact.get(`${city}|${name}`)
     || exact.get(`${city.replace(/市$/, "")}|${name}`)
@@ -236,11 +273,7 @@ function buildSupplementalLookup(table, source, quality) {
 
 function createDetailRecordLookup(chinaData) {
   const cityLookup = createPriceLookup(chinaData);
-  const nationalDistrictLookup = buildSupplementalLookup(
-    chinaData.districtData,
-    "禧泰数据/中国房价行情",
-    "区县住宅挂牌均价",
-  );
+  const nationalDistrictLookup = buildDistrictRecordLookup(chinaData);
   const gbaLookup = buildSupplementalLookup(
     readOptionalJson(GBA_DATA_FILE).mainlandData,
     "禧泰数据/中国房价行情",
@@ -348,6 +381,7 @@ function buildProvinceDetailLayers(projection, data) {
       priced: payload.regions.filter(region => region.price).length,
       inherited: payload.regions.filter(region => region.price && region.inherited).length,
       independent: payload.regions.filter(region => region.price && !region.inherited).length,
+      supplemental: payload.regions.filter(region => region.price && !region.inherited && region.supplemental).length,
     };
   }).filter(Boolean);
 }
@@ -367,6 +401,7 @@ function main() {
   const detailPricedCount = detailLayers.reduce((sum, layer) => sum + layer.priced, 0);
   const detailIndependentCount = detailLayers.reduce((sum, layer) => sum + layer.independent, 0);
   const detailInheritedCount = detailLayers.reduce((sum, layer) => sum + layer.inherited, 0);
+  const detailSupplementalCount = detailLayers.reduce((sum, layer) => sum + layer.supplemental, 0);
   const html = createInteractiveMap({
     pageTitle: "全国房价交互地图",
     title: "全国房价地图",
@@ -395,9 +430,9 @@ function main() {
     notesHtml: `
       <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 ${generatedAtText}。<br>
       <b>渐进细化：</b>全国初始为城市级；缩放到任意地区时按省份懒加载区县级边界，避免一次性加载过重。<br>
-      <b>覆盖：</b>当前全国底图 ${features.length} 个城市级区域，已匹配房价 ${matched} 个；区县级细节 ${detailRegionCount} 个区域，独立区县数据 ${detailIndependentCount} 个，沿用市均 ${detailInheritedCount} 个。<br>
-      <b>口径：</b>主数据为禧泰数据/中国房价行情城市住宅挂牌均价；香港、澳门使用补充估算并以不同口径标注。<br>
-      <b>说明：</b>标签或列表中的“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价；详情面板会标注“沿用市均”。
+      <b>覆盖：</b>当前全国底图 ${features.length} 个城市级区域，已匹配房价 ${matched} 个；区县级细节 ${detailRegionCount} 个区域，独立区县数据 ${detailIndependentCount} 个（补充来源 ${detailSupplementalCount} 个），沿用市均 ${detailInheritedCount} 个。<br>
+      <b>口径：</b>主数据为禧泰数据/中国房价行情城市住宅挂牌均价；缺口区县用房天下查房价二手房参考均价补充；香港、澳门使用补充估算并以不同口径标注。<br>
+      <b>说明：</b>标签或列表中的“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价；“补充”表示来自非主来源的区县均价。
     `,
   });
   fs.writeFileSync(OUT_HTML, html, "utf8");
