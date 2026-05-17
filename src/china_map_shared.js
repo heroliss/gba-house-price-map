@@ -19,7 +19,7 @@ const TOPIC_MAPS = [
     file: "yangtze-delta.html",
     title: "长三角房价地图",
     sideTitle: "长三角城市数据",
-    caption: "上海、江苏、浙江、安徽城市级新房价；缺样本时用二手/挂牌价估算。",
+    caption: "上海、江苏、浙江、安徽城市级住宅挂牌价；有新房样本时在详情中并列参考。",
     provinces: ["上海", "江苏", "浙江", "安徽"],
     mapBox: { x: 100, y: 120, w: 1120, h: 1040 },
     notes: "长三角专题暂以城市级数据展示；后续可继续补区县级边界和数据。",
@@ -29,7 +29,7 @@ const TOPIC_MAPS = [
     file: "chengyu.html",
     title: "成渝地区房价地图",
     sideTitle: "成渝城市数据",
-    caption: "重庆、四川城市级新房价；缺样本时用二手/挂牌价估算。",
+    caption: "重庆、四川城市级住宅挂牌价；有新房样本时在详情中并列参考。",
     provinces: ["重庆", "四川"],
     mapBox: { x: 84, y: 116, w: 1160, h: 1040 },
     notes: "成渝专题暂以城市级数据展示，重庆按直辖市整体均价呈现。",
@@ -39,7 +39,7 @@ const TOPIC_MAPS = [
     file: "middle-yangtze.html",
     title: "长江中游房价地图",
     sideTitle: "长江中游城市数据",
-    caption: "湖北、湖南、江西城市级新房价；缺样本时用二手/挂牌价估算。",
+    caption: "湖北、湖南、江西城市级住宅挂牌价；有新房样本时在详情中并列参考。",
     provinces: ["湖北", "湖南", "江西"],
     mapBox: { x: 84, y: 116, w: 1160, h: 1040 },
     notes: "长江中游专题暂以城市级数据展示，适合快速比较武汉、长沙、南昌及周边城市。",
@@ -49,7 +49,7 @@ const TOPIC_MAPS = [
     file: "west-coast.html",
     title: "海峡西岸房价地图",
     sideTitle: "海峡西岸城市数据",
-    caption: "福建城市级新房价；缺样本时用二手/挂牌价估算。",
+    caption: "福建城市级住宅挂牌价；有新房样本时在详情中并列参考。",
     provinces: ["福建"],
     mapBox: { x: 110, y: 106, w: 1060, h: 1060 },
     notes: "海峡西岸专题先以福建城市级数据呈现，台湾数据源口径待补充。",
@@ -59,7 +59,7 @@ const TOPIC_MAPS = [
     file: "shandong-peninsula.html",
     title: "山东半岛房价地图",
     sideTitle: "山东半岛城市数据",
-    caption: "山东城市级新房价；缺样本时用二手/挂牌价估算。",
+    caption: "山东城市级住宅挂牌价；有新房样本时在详情中并列参考。",
     provinces: ["山东"],
     mapBox: { x: 90, y: 116, w: 1120, h: 1040 },
     notes: "山东半岛专题先以山东城市级数据呈现，重点观察青岛、济南、烟台、威海等城市。",
@@ -121,8 +121,16 @@ function inferMarketKind(record = {}) {
   return "resale";
 }
 
+function hasEstimateEvidence(record = {}, basis = "", ratio = DEFAULT_NEW_TO_RESALE_RATIO) {
+  if (record.hasEstimateRatio) return true;
+  if (record.estimateSampleCount > 0) return true;
+  const text = String(record.estimateBasis || basis || "");
+  return Boolean(text && !text.includes("暂无") && !text.includes("1:1")) && ratio !== DEFAULT_NEW_TO_RESALE_RATIO;
+}
+
 function comparableRecord(record = {}, ratio = DEFAULT_NEW_TO_RESALE_RATIO, basis = "") {
   const estimateRatio = clampEstimateRatio(ratio);
+  const canEstimateNewFromResale = hasEstimateEvidence(record, basis, estimateRatio);
   const basePrice = validPrice(record.price);
   const inferredKind = inferMarketKind(record);
   let newPrice = validPrice(record.newPrice);
@@ -142,7 +150,7 @@ function comparableRecord(record = {}, ratio = DEFAULT_NEW_TO_RESALE_RATIO, basi
     resalePrice = basePrice;
     resalePriceEstimated = false;
   }
-  if (!newPrice && resalePrice) {
+  if (!newPrice && resalePrice && canEstimateNewFromResale) {
     newPrice = Math.round(resalePrice * estimateRatio);
     newPriceEstimated = true;
   }
@@ -151,25 +159,36 @@ function comparableRecord(record = {}, ratio = DEFAULT_NEW_TO_RESALE_RATIO, basi
     resalePriceEstimated = true;
   }
 
-  const priceType = newPrice
-    ? (newPriceEstimated ? "new-estimated" : "new")
-    : resalePrice
-      ? (resalePriceEstimated ? "resale-estimated" : "resale")
+  const priceType = resalePrice
+    ? (resalePriceEstimated ? "resale-estimated" : "resale")
+    : newPrice
+      ? (newPriceEstimated ? "new-estimated" : "new")
       : "";
-  const price = newPrice || resalePrice || basePrice || null;
+  const price = resalePrice || newPrice || basePrice || null;
+  const primaryIsResale = Boolean(resalePrice);
+  const source = primaryIsResale ? (resaleSource || record.source || "") : (newSource || record.source || "");
+  const quality = primaryIsResale ? (resaleQuality || record.quality || "") : (newQuality || record.quality || "");
+  const mom = primaryIsResale ? (record.resaleMom || record.mom || "--%") : (record.newMom || record.mom || "--%");
+  const estimateUsed = Boolean(newPriceEstimated || resalePriceEstimated || priceType.includes("estimated"));
 
   return {
     ...record,
     price,
+    mom,
+    source,
+    quality,
     priceType,
     newPrice,
     resalePrice,
     newPriceEstimated,
     resalePriceEstimated,
-    estimateRatio: Number(estimateRatio.toFixed(3)),
-    estimateBasis: record.estimateBasis || basis || (estimateRatio === 1
-      ? "暂无同区新房与二手配对样本，按 1:1 近似估算"
-      : "按同城或同省新房/二手房价比例估算"),
+    estimateRatio: estimateUsed ? Number(estimateRatio.toFixed(3)) : undefined,
+    hasEstimateRatio: estimateUsed && (canEstimateNewFromResale || Boolean(record.hasEstimateRatio)),
+    estimateBasis: estimateUsed
+      ? (record.estimateBasis || basis || (estimateRatio === 1
+        ? "暂无同区新房与二手配对样本，按 1:1 近似估算"
+        : "按同城或同省新房/二手房价比例估算"))
+      : undefined,
     newSource,
     newQuality,
     resaleSource,

@@ -87,6 +87,34 @@ function regionBounds(regions) {
   }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 }
 
+function addPresentField(target, key, value) {
+  if (value !== undefined && value !== null && value !== "" && value !== false) target[key] = value;
+}
+
+function regionMetadata(record, defaultDataLevel = "") {
+  const metadata = {};
+  addPresentField(metadata, "mom", record?.mom);
+  addPresentField(metadata, "source", record?.source);
+  addPresentField(metadata, "quality", record?.quality);
+  addPresentField(metadata, "dataLevel", record?.dataLevel || defaultDataLevel);
+  addPresentField(metadata, "priceType", record?.priceType);
+  addPresentField(metadata, "newPrice", record?.newPrice);
+  addPresentField(metadata, "resalePrice", record?.resalePrice);
+  addPresentField(metadata, "newPriceEstimated", Boolean(record?.newPriceEstimated));
+  addPresentField(metadata, "resalePriceEstimated", Boolean(record?.resalePriceEstimated));
+  if (record?.newPriceEstimated || record?.resalePriceEstimated || String(record?.priceType || "").includes("estimated")) {
+    addPresentField(metadata, "estimateRatio", record?.estimateRatio);
+    addPresentField(metadata, "estimateBasis", record?.estimateBasis);
+  }
+  addPresentField(metadata, "newSource", record?.newSource);
+  addPresentField(metadata, "newQuality", record?.newQuality);
+  addPresentField(metadata, "resaleSource", record?.resaleSource);
+  addPresentField(metadata, "resaleQuality", record?.resaleQuality);
+  addPresentField(metadata, "inherited", Boolean(record?.inheritedCityAverage));
+  addPresentField(metadata, "supplemental", Boolean(record?.supplemental));
+  return metadata;
+}
+
 function createLayerPayload(id, features, outlines, projection, getRecord, tolerance = 0.12) {
   const regions = features.map((feature, index) => {
     const city = feature.properties.city;
@@ -102,23 +130,7 @@ function createLayerPayload(id, features, outlines, projection, getRecord, toler
       name,
       label,
       price,
-      mom: record?.mom || "",
-      source: record?.source || "",
-      quality: record?.quality || "",
-      dataLevel: record?.dataLevel || "",
-      priceType: record?.priceType || "",
-      newPrice: record?.newPrice || null,
-      resalePrice: record?.resalePrice || null,
-      newPriceEstimated: Boolean(record?.newPriceEstimated),
-      resalePriceEstimated: Boolean(record?.resalePriceEstimated),
-      estimateRatio: record?.estimateRatio || null,
-      estimateBasis: record?.estimateBasis || "",
-      newSource: record?.newSource || "",
-      newQuality: record?.newQuality || "",
-      resaleSource: record?.resaleSource || "",
-      resaleQuality: record?.resaleQuality || "",
-      inherited: Boolean(record?.inheritedCityAverage),
-      supplemental: Boolean(record?.supplemental),
+      ...regionMetadata(record),
       d,
       bounds: pathBounds(d),
       fill: colorFor(price, BREAKS, COLORS),
@@ -279,22 +291,33 @@ function buildEstimateRatioLookup(chinaData) {
     }
   }
   const median = values => {
-    if (!values.length) return null;
-    const sorted = [...values].sort((a, b) => a - b);
-    return sorted[Math.floor(sorted.length / 2)];
+    const filtered = values.filter(value => value >= 0.55 && value <= 1.8);
+    if (!filtered.length) return null;
+    const sorted = [...filtered].sort((a, b) => a - b);
+    const trim = sorted.length >= 12 ? Math.floor(sorted.length * 0.1) : 0;
+    const sample = trim ? sorted.slice(trim, sorted.length - trim) : sorted;
+    if (!sample.length) return null;
+    return sample[Math.floor(sample.length / 2)];
   };
-  const provinceMedian = new Map([...byProvince].map(([key, values]) => [key, median(values)]));
-  const nationalMedian = median(national) || chinaData.metadata?.newToResaleRatio || 1;
+  const provinceMedian = new Map([...byProvince]
+    .map(([key, values]) => [key, {
+      ratio: median(values),
+      count: values.filter(value => value >= 0.55 && value <= 1.8).length,
+    }])
+    .filter(([, summary]) => summary.ratio && summary.count >= 3));
+  const nationalCount = national.filter(value => value >= 0.55 && value <= 1.8).length;
+  const nationalMedian = nationalCount >= 10 ? median(national) : null;
   return (city, province) => {
     const cityRatio = byCity.get(normalizeCity(city));
-    if (cityRatio) return { ratio: cityRatio, basis: "按同城新房/二手配对样本估算" };
-    const provinceRatio = provinceMedian.get(normalizeCity(province));
-    if (provinceRatio) return { ratio: provinceRatio, basis: "按同省新房/二手配对样本估算" };
+    if (cityRatio) return { ratio: cityRatio, basis: "按同城新房/二手配对样本估算", hasEvidence: true, count: 1 };
+    const provinceSummary = provinceMedian.get(normalizeCity(province));
+    if (provinceSummary?.ratio) return { ratio: provinceSummary.ratio, basis: `按同省 ${provinceSummary.count} 个新房/二手配对样本估算`, hasEvidence: true, count: provinceSummary.count };
+    if (nationalMedian) return { ratio: nationalMedian, basis: `按全国 ${nationalCount} 个新房/二手配对样本估算`, hasEvidence: true, count: nationalCount };
     return {
-      ratio: nationalMedian,
-      basis: national.length
-        ? "按全国新房/二手配对样本估算"
-        : "暂无新房与二手配对样本，暂按 1:1 近似估算",
+      ratio: chinaData.metadata?.newToResaleRatio || 1,
+      basis: "暂无足够新房与二手配对样本，暂不估算新房参考价",
+      hasEvidence: false,
+      count: 0,
     };
   };
 }
@@ -325,6 +348,8 @@ function buildDistrictRecordLookup(chinaData) {
       supplemental: Boolean(value.supplemental),
       url: value.url || "",
       fetchedAt: value.fetchedAt || "",
+      hasEstimateRatio: value.hasEstimateRatio || ratio.hasEvidence,
+      estimateSampleCount: value.estimateSampleCount || ratio.count,
     }, value.estimateRatio || ratio.ratio, value.estimateBasis || ratio.basis);
     exact.set(`${city}|${area}`, record);
     const normalizedKey = `${normalizeCity(city)}|${normalizeCity(area)}`;
@@ -363,7 +388,13 @@ function createDetailRecordLookup(chinaData) {
     const cityAverage = cityLookup(province, city) || cityLookup(city, city) || cityLookup("", city);
     return cityAverage ? {
       ...cityAverage,
-      quality: cityAverage.newPriceEstimated ? "城市新房估算均价，用于区县底色" : "城市新房均价，用于区县底色",
+      quality: cityAverage.priceType === "resale"
+        ? "城市住宅挂牌均价，用于区县底色"
+        : cityAverage.priceType === "resale-estimated"
+          ? "城市住宅挂牌估算均价，用于区县底色"
+          : cityAverage.newPriceEstimated
+            ? "城市新房估算均价，用于区县底色"
+            : "城市新房均价，用于区县底色",
       dataLevel: "city-inherited",
       inheritedCityAverage: true,
       supplemental: true,
@@ -474,7 +505,7 @@ function main() {
     subtitle: "一张地图渐进细化；放大后自动加载区县边界和价格标签",
     updateLine: `数据：${data.metadata?.coverage || "全国城市"}；最近抓取：${fetchedAt}`,
     sideTitle: "全国城市数据",
-    caption: "默认看新房价；若缺少真实新房样本，会按新房/二手比例估算，并保留二手/挂牌参考价。",
+    caption: "默认展示二手/挂牌价；有新房样本时在详情中并列参考，缺挂牌价时才用新房价反推估算。",
     width: 1800,
     height: 1320,
     mapBox: MAP_BOX,
@@ -497,8 +528,8 @@ function main() {
       <b>更新：</b>GitHub Actions 每周一 04:00（北京时间）尝试拉取全国城市排行；页面生成 ${generatedAtText}。<br>
       <b>渐进细化：</b>全国初始为城市级；缩放到任意地区时按省份懒加载区县级边界，避免一次性加载过重。<br>
       <b>覆盖：</b>当前全国底图 ${features.length} 个城市级区域，已匹配房价 ${matched} 个；区县级细节 ${detailRegionCount} 个区域，独立区县数据 ${detailIndependentCount} 个（补充来源 ${detailSupplementalCount} 个），沿用市均 ${detailInheritedCount} 个。<br>
-      <b>口径：</b>页面默认展示新房价；真实新房样本优先来自城市房网新盘均价，缺少新房样本时按同城、同省或全国新房/二手比例估算；二手/挂牌参考价来自禧泰数据/中国房价行情和房天下查房价。<br>
-      <b>说明：</b>标签中的“估”表示新房价为估算值；“二手/挂牌”会在详情里作为参考价并排显示；“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价。
+      <b>口径：</b>页面默认展示二手/挂牌价，来自禧泰数据/中国房价行情和房天下查房价；真实新房样本优先来自城市房网新盘均价，并在详情中并列显示。缺挂牌价但有新房价时，按同城、同省或全国新房/挂牌配对样本的稳健中位数反推挂牌价。<br>
+      <b>说明：</b>标签中的“估”仅表示当前主价由新房价反推估算；“新房”或“新房估算”会在详情里作为参考价显示；“市均”表示该区县暂未抓到独立价格，当前沿用所属城市均价。
     `,
   });
   fs.writeFileSync(OUT_HTML, html, "utf8");

@@ -309,27 +309,19 @@ async function fetchCityhouseNewCityData(cityRows) {
   };
 }
 
-function createDistrictRecord({ price, mom, source, quality, dataLevel, supplemental, url, fetchedAt }) {
-  return {
-    price,
-    mom: mom || "--%",
-    source,
-    quality,
-    dataLevel,
-    supplemental: Boolean(supplemental),
-    url: url || "",
-    fetchedAt,
-  };
-}
-
 function median(values) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
+  const filtered = values.filter(value => value >= 0.55 && value <= 1.8);
+  if (!filtered.length) return null;
+  const sorted = [...filtered].sort((a, b) => a - b);
+  const trim = sorted.length >= 12 ? Math.floor(sorted.length * 0.1) : 0;
+  const sample = trim ? sorted.slice(trim, sorted.length - trim) : sorted;
+  if (!sample.length) return null;
+  return sample[Math.floor(sample.length / 2)];
 }
 
 function buildCityRecords(cityRows, cityhouseNewData, fetchedAt) {
   const cityRecords = {};
+  const cityRowByCity = new Map(cityRows.map(row => [row.city, row]));
   const ratiosByProvince = new Map();
   const nationalRatios = [];
   for (const row of cityRows) {
@@ -355,32 +347,55 @@ function buildCityRecords(cityRows, cityhouseNewData, fetchedAt) {
       resaleMom: row.mom,
       resaleSource: "禧泰数据/中国房价行情",
       resaleQuality: "城市住宅挂牌均价",
+      hasEstimateRatio: Boolean(ratio),
+      estimateSampleCount: ratio ? 1 : 0,
       url: newItem?.url || "",
       fetchedAt,
     }, ratio || 1, ratio ? "按同城新房/二手配对样本估算" : "暂无同城新房样本，暂按 1:1 近似估算");
   }
 
-  const provinceRatios = new Map([...ratiosByProvince].map(([province, values]) => [province, median(values)]));
-  const nationalRatio = median(nationalRatios) || 1;
+  const provinceRatios = new Map([...ratiosByProvince]
+    .map(([province, values]) => [province, { ratio: median(values), count: values.filter(value => value >= 0.55 && value <= 1.8).length }])
+    .filter(([, summary]) => summary.ratio && summary.count >= 3));
+  const nationalSummary = {
+    ratio: nationalRatios.length >= 10 ? median(nationalRatios) : null,
+    count: nationalRatios.filter(value => value >= 0.55 && value <= 1.8).length,
+  };
   const ratioForCity = city => {
-    const row = cityRows.find(item => item.city === city);
+    const row = cityRowByCity.get(city);
     const cityRecord = row ? cityRecords[row.city] : null;
     if (cityRecord?.newPrice && cityRecord?.resalePrice && !cityRecord.newPriceEstimated) {
-      return { ratio: clampEstimateRatio(cityRecord.newPrice / cityRecord.resalePrice), basis: "按同城新房/二手配对样本估算" };
+      return { ratio: clampEstimateRatio(cityRecord.newPrice / cityRecord.resalePrice), basis: "按同城新房/二手配对样本估算", hasEvidence: true, count: 1 };
     }
-    const provinceRatio = row ? provinceRatios.get(normalizeCity(row.province)) : null;
-    if (provinceRatio) return { ratio: provinceRatio, basis: "按同省新房/二手配对样本估算" };
+    const provinceSummary = row ? provinceRatios.get(normalizeCity(row.province)) : null;
+    if (provinceSummary?.ratio) return { ratio: provinceSummary.ratio, basis: `按同省 ${provinceSummary.count} 个新房/二手配对样本估算`, hasEvidence: true, count: provinceSummary.count };
+    if (nationalSummary.ratio) return { ratio: nationalSummary.ratio, basis: `按全国 ${nationalSummary.count} 个新房/二手配对样本估算`, hasEvidence: true, count: nationalSummary.count };
     return {
-      ratio: nationalRatio,
-      basis: nationalRatios.length ? "按全国新房/二手配对样本估算" : "暂无新房与二手配对样本，暂按 1:1 近似估算",
+      ratio: 1,
+      basis: "暂无足够新房与二手配对样本，暂不估算新房参考价",
+      hasEvidence: false,
+      count: 0,
     };
   };
+
+  for (const row of cityRows) {
+    const current = cityRecords[row.city];
+    if (!current || current.newPrice) continue;
+    const ratio = ratioForCity(row.city);
+    cityRecords[row.city] = comparableRecord({
+      ...current,
+      hasEstimateRatio: ratio.hasEvidence,
+      estimateSampleCount: ratio.count,
+      estimateBasis: ratio.basis,
+    }, ratio.ratio, ratio.basis);
+  }
 
   return {
     cityRecords,
     ratioForCity,
     cityhouseMatched: Object.keys(cityhouseNewData).length,
-    nationalRatio,
+    nationalRatio: nationalSummary.ratio || 1,
+    nationalRatioSampleCount: nationalSummary.count,
   };
 }
 
@@ -398,7 +413,8 @@ function createComparableDistrictRecord({ price, mom, source, quality, dataLevel
     resaleMom: mom,
     resaleSource: source,
     resaleQuality: quality,
-  }, ratio, basis);
+    hasEstimateRatio: Boolean(ratio && basis && !basis.includes("暂无")),
+    }, ratio, basis);
 }
 
 function mergeDistrictRecords(primaryDistrictData, fangDistrictData, fetchedAt, ratioForCity) {
@@ -476,11 +492,12 @@ async function main() {
         fang: mergedDistricts.sourceCounts.fang,
         cityhouseNewCity: cityComparable.cityhouseMatched,
       },
-      defaultPriceType: "new",
+      defaultPriceType: "resale",
       estimateRule: cityComparable.cityhouseMatched
-        ? "优先展示真实新房/新盘均价；缺区县新房价时按同城、同省或全国新房/二手比例估算，并保留二手/挂牌参考价"
-        : "本次未抓到稳定新房样本；暂按 1:1 近似估算新房价，并保留二手/挂牌参考价",
+        ? "默认展示二手/挂牌价；有真实新房样本时在详情中并列显示，缺新房样本时仅在同城、同省或全国配对样本足够时估算新房参考价"
+        : "默认展示二手/挂牌价；本次未抓到稳定新房样本，暂不强行估算新房参考价",
       newToResaleRatio: cityComparable.nationalRatio,
+      newToResaleRatioSampleCount: cityComparable.nationalRatioSampleCount,
     },
     cityStats: rows.map(row => [row.city, cityComparable.cityRecords[row.city]?.price || row.price, cityComparable.cityRecords[row.city]?.mom || row.mom, row.province]),
     cityData: rows,

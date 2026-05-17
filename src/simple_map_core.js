@@ -286,6 +286,34 @@ function mergeBounds(items) {
   }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
 }
 
+function addPresentField(target, key, value) {
+  if (value !== undefined && value !== null && value !== "" && value !== false) target[key] = value;
+}
+
+function regionMetadata(record, defaultDataLevel = "") {
+  const metadata = {};
+  addPresentField(metadata, "mom", record?.mom);
+  addPresentField(metadata, "source", record?.source);
+  addPresentField(metadata, "quality", record?.quality);
+  addPresentField(metadata, "dataLevel", record?.dataLevel || defaultDataLevel);
+  addPresentField(metadata, "priceType", record?.priceType);
+  addPresentField(metadata, "newPrice", record?.newPrice);
+  addPresentField(metadata, "resalePrice", record?.resalePrice);
+  addPresentField(metadata, "newPriceEstimated", Boolean(record?.newPriceEstimated));
+  addPresentField(metadata, "resalePriceEstimated", Boolean(record?.resalePriceEstimated));
+  if (record?.newPriceEstimated || record?.resalePriceEstimated || String(record?.priceType || "").includes("estimated")) {
+    addPresentField(metadata, "estimateRatio", record?.estimateRatio);
+    addPresentField(metadata, "estimateBasis", record?.estimateBasis);
+  }
+  addPresentField(metadata, "newSource", record?.newSource);
+  addPresentField(metadata, "newQuality", record?.newQuality);
+  addPresentField(metadata, "resaleSource", record?.resaleSource);
+  addPresentField(metadata, "resaleQuality", record?.resaleQuality);
+  addPresentField(metadata, "inherited", Boolean(record?.inheritedCityAverage));
+  addPresentField(metadata, "supplemental", Boolean(record?.supplemental));
+  return metadata;
+}
+
 function colorFor(value, breaks, colors) {
   if (!value) return "#eef2f0";
   for (let i = 0; i < breaks.length - 1; i++) {
@@ -330,23 +358,7 @@ function createInteractiveMap(config) {
       name: feature.properties.name,
       label,
       price,
-      mom: record?.mom || "",
-      source: record?.source || "",
-      quality: record?.quality || "",
-      dataLevel: record?.dataLevel || "city",
-      priceType: record?.priceType || "",
-      newPrice: record?.newPrice || null,
-      resalePrice: record?.resalePrice || null,
-      newPriceEstimated: Boolean(record?.newPriceEstimated),
-      resalePriceEstimated: Boolean(record?.resalePriceEstimated),
-      estimateRatio: record?.estimateRatio || null,
-      estimateBasis: record?.estimateBasis || "",
-      newSource: record?.newSource || "",
-      newQuality: record?.newQuality || "",
-      resaleSource: record?.resaleSource || "",
-      resaleQuality: record?.resaleQuality || "",
-      inherited: Boolean(record?.inheritedCityAverage),
-      supplemental: Boolean(record?.supplemental),
+      ...regionMetadata(record, "city"),
       d,
       bounds: pathBounds(d),
       fill: colorFor(price, breaks, colors),
@@ -363,7 +375,7 @@ function createInteractiveMap(config) {
   const isInheritedRegion = r => Boolean(r.inherited || r.dataLevel === "city-inherited");
   const regionClasses = r => `region${isInheritedRegion(r) ? " inheritedRegion" : ""}`;
   const regionAttrs = r => `data-city="${esc(r.city)}" data-name="${esc(r.name)}" data-level="${esc(r.dataLevel || "")}" data-inherited="${isInheritedRegion(r) ? "true" : "false"}"`;
-  const detailLabelText = r => `${esc(r.label)} ${fmtWanLabel(r.price)}${r.priceType === "new-estimated" ? " 估" : r.priceType === "resale" ? " 二手" : ""}${isInheritedRegion(r) ? " 市均" : ""}`;
+  const detailLabelText = r => `${esc(r.label)} ${fmtWanLabel(r.price)}${r.priceType === "resale-estimated" ? " 估" : ""}${isInheritedRegion(r) ? " 市均" : ""}`;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -475,7 +487,7 @@ function createInteractiveMap(config) {
         <g id="detailLabels">${regions.filter(r => r.price).map(r => `<text class="detailLabel" x="${r.cx}" y="${r.cy}" data-min-scale="${r.labelMinScale}" text-anchor="middle">${detailLabelText(r)}</text>`).join("")}</g><g id="dynamicLabels"></g>
       </g>
     </svg>
-    <div class="legend"><div class="legendTitle">新房价（万/㎡）</div><div class="swatches">${colors.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div><div class="legendLabels">${colors.map((_, i) => `<span>${legendLabel(i, breaks, colors)}</span>`).join("")}</div></div>
+    <div class="legend"><div class="legendTitle">住宅挂牌价（万/㎡）</div><div class="swatches">${colors.map(c => `<span class="swatch" style="background:${c}"></span>`).join("")}</div><div class="legendLabels">${colors.map((_, i) => `<span>${legendLabel(i, breaks, colors)}</span>`).join("")}</div></div>
     <div class="tileAttribution">地图 © 高德地图</div>
   </section>
   <aside class="side">
@@ -511,7 +523,7 @@ let state={scale:1,x:0,y:0},dragging=false,last=null,activePointers=new Map(),pi
 const loadedDetailSources=new Set(),loadingDetailSources=new Set();
 const minScale=.7,maxScale=${Number(config.maxScale || 60)},maxDetailLoadsPerPass=${Number(config.maxDetailLoadsPerPass || 3)},projection=${JSON.stringify({ minX: projection.minX, minY: projection.minY, maxX: projection.maxX, maxY: projection.maxY, scale: projection.scale, ox: projection.ox, oy: projection.oy })},mapBounds=${JSON.stringify(projection.projectedMapBounds)};
 function fmt(value){return Number(value).toLocaleString('zh-CN')} function fmtWan(value){return Number((Number(value)/10000).toFixed(1)).toLocaleString('zh-CN',{maximumFractionDigits:1})+'万'} function escapeHtml(value){return String(value??'').replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))}
-function isInherited(r){return !!(r&& (r.inherited||r.dataLevel==='city-inherited'||String(r.quality||'').includes('用于区县底色')))} function isSupplement(r){return !!(r&&(r.dataLevel==='district-supplement'||(r.supplemental&&!isInherited(r))))} function marketText(r){if(!r?.price)return '';if(r.priceType==='new')return '新房';if(r.priceType==='new-estimated')return '新房估算';if(r.priceType==='resale')return '二手/挂牌';if(r.priceType==='resale-estimated')return '二手估算';return '房价'} function levelText(r){if(!r?.price)return '';if(isInherited(r))return marketText(r)+'市均';if(r.priceType==='new'||r.priceType==='new-estimated'||r.priceType==='resale'||r.priceType==='resale-estimated')return marketText(r);if(isSupplement(r))return '补充数据';if(r.dataLevel==='district'||String(r.quality||'').includes('区县'))return '区县数据';if(r.dataLevel==='city')return '城市数据';return '公开数据'} function levelClass(r){return isInherited(r)?'levelBadge inherited':(r.priceType==='new'||r.priceType==='new-estimated'?'levelBadge new':(r.priceType==='resale'||r.priceType==='resale-estimated'||isSupplement(r)?'levelBadge supplement':(r.dataLevel==='district'||String(r.quality||'').includes('区县')?'levelBadge district':'levelBadge')))} function labelText(r){return escapeHtml(r.label)+' '+fmtWan(r.price)+(r.priceType==='new-estimated'?' 估':r.priceType==='resale'?' 二手':'')+(isInherited(r)?' 市均':'')} function referenceLine(r){const parts=[];if(r.newPrice)parts.push('新房'+(r.newPriceEstimated?'估算':'')+' '+fmt(r.newPrice)+' 元/㎡');if(r.resalePrice)parts.push('二手/挂牌'+(r.resalePriceEstimated?'估算':'')+' '+fmt(r.resalePrice)+' 元/㎡');return parts.join(' · ')} function sourceLine(r){const estimate=(r.newPriceEstimated||r.resalePriceEstimated)?r.estimateBasis:'';return [levelText(r),r.quality,r.source,estimate].filter(Boolean).join(' · ')}
+function isInherited(r){return !!(r&& (r.inherited||r.dataLevel==='city-inherited'||String(r.quality||'').includes('用于区县底色')))} function isSupplement(r){return !!(r&&(r.dataLevel==='district-supplement'||(r.supplemental&&!isInherited(r))))} function marketText(r){if(!r?.price)return '';if(r.priceType==='new')return '新房';if(r.priceType==='new-estimated')return '新房估算';if(r.priceType==='resale')return '挂牌/二手';if(r.priceType==='resale-estimated')return '挂牌估算';return '房价'} function levelText(r){if(!r?.price)return '';if(isInherited(r))return marketText(r)+'市均';if(r.priceType==='new'||r.priceType==='new-estimated'||r.priceType==='resale'||r.priceType==='resale-estimated')return marketText(r);if(isSupplement(r))return '补充数据';if(r.dataLevel==='district'||String(r.quality||'').includes('区县'))return '区县数据';if(r.dataLevel==='city')return '城市数据';return '公开数据'} function levelClass(r){return isInherited(r)?'levelBadge inherited':(r.priceType==='new'?'levelBadge new':(r.priceType==='new-estimated'||r.priceType==='resale-estimated'||isSupplement(r)?'levelBadge supplement':(r.dataLevel==='district'||String(r.quality||'').includes('区县')?'levelBadge district':'levelBadge')))} function labelText(r){return escapeHtml(r.label)+' '+fmtWan(r.price)+(r.priceType==='resale-estimated'?' 估':'')+(isInherited(r)?' 市均':'')} function referenceLine(r){const parts=[];if(r.resalePrice)parts.push('挂牌/二手'+(r.resalePriceEstimated?'估算':'')+' '+fmt(r.resalePrice)+' 元/㎡');if(r.newPrice)parts.push('新房'+(r.newPriceEstimated?'估算':'')+' '+fmt(r.newPrice)+' 元/㎡');return parts.join(' · ')} function sourceLine(r){const estimate=(r.priceType==='resale-estimated'||r.priceType==='new-estimated'||r.newPriceEstimated||r.resalePriceEstimated)?r.estimateBasis:'';return [levelText(r),r.quality,r.source,estimate].filter(Boolean).join(' · ')}
 function applyOverlayOpacity(){document.documentElement.style.setProperty('--overlay-opacity',overlayOpacity.toFixed(2));overlayOpacityValue.textContent=Math.round(overlayOpacity*100)+'%'} function applyLabelScale(){document.documentElement.style.setProperty('--label-scale',labelScale.toFixed(2));labelScaleValue.textContent=Math.round(labelScale/labelScaleBase*100)+'%'} function applyMapLabelVisibility(){cityLabels.style.display=labelsVisible&&state.scale<2.55?'':'none';detailLabelEls.forEach(label=>label.el.style.display=labelsVisible&&state.scale>=label.minScale?'block':'none');toggleLabelsButton.textContent=labelsVisible?'隐藏标注':'显示标注';toggleLabelsButton.classList.toggle('active',labelsVisible)}
 function viewMetrics(){if(viewMetricCache)return viewMetricCache;const rect=svg.getBoundingClientRect(),box=svg.viewBox.baseVal,scale=Math.min(rect.width/box.width,rect.height/box.height)||1,drawnW=box.width*scale,drawnH=box.height*scale;return viewMetricCache={box,scale,offsetX:rect.left+(rect.width-drawnW)/2,offsetY:rect.top+(rect.height-drawnH)/2}} function clientToSvg(clientX,clientY){const m=viewMetrics();return{x:m.box.x+(clientX-m.offsetX)/m.scale,y:m.box.y+(clientY-m.offsetY)/m.scale}} function clientDeltaToSvg(dx,dy){const m=viewMetrics();return{x:dx/m.scale,y:dy/m.scale}} function svgToContent(point){return{x:(point.x-state.x)/state.scale,y:(point.y-state.y)/state.scale}}
 function svgVisibleBox(){const box=svg.viewBox.baseVal;return{minX:box.x,minY:box.y,maxX:box.x+box.width,maxY:box.y+box.height}}
